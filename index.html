@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>pixel-led · 点阵与拼豆 Demo</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='%230b1017'/><circle cx='4' cy='4' r='1.5' fill='%2300d8ff'/><circle cx='8' cy='4' r='1.5' fill='%23ff8a00'/><circle cx='12' cy='4' r='1.5' fill='%23e8352b'/><circle cx='4' cy='8' r='1.5' fill='%2335e08a'/><circle cx='8' cy='8' r='1.5' fill='%23ffd400'/><circle cx='12' cy='8' r='1.5' fill='%237b4bc9'/><circle cx='4' cy='12' r='1.5' fill='%23fff'/><circle cx='8' cy='12' r='1.5' fill='%2300d8ff'/><circle cx='12' cy='12' r='1.5' fill='%23ff8a00'/></svg>" />
+<style>
+  :root {
+    --bg: #070a0e; --panel: #10161d; --line: #1d2732; --text: #e9f2f8;
+    --muted: #8595a6; --cyan: #00d8ff; --r: 16px;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; color: var(--text); font-family: var(--sans);
+    background: radial-gradient(1100px 600px at 50% -10%, #0d2634 0%, transparent 60%), var(--bg);
+    padding: 48px 24px 64px; -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  header { margin-bottom: 40px; }
+  h1 { margin: 0 0 10px; font-size: 30px; letter-spacing: -.5px; }
+  .sub { color: var(--muted); font-size: 15px; line-height: 1.7; max-width: 720px; }
+  .sub code { font-family: var(--mono); color: var(--cyan); background: #0a1016; padding: 1px 6px; border-radius: 5px; font-size: 13px; }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; }
+  a.card {
+    display: flex; flex-direction: column; gap: 12px; text-decoration: none; color: inherit;
+    background: linear-gradient(180deg, var(--panel), #0b1117);
+    border: 1px solid var(--line); border-radius: var(--r); padding: 22px;
+    transition: border-color .18s, transform .18s, box-shadow .18s;
+  }
+  a.card:hover { border-color: #1d5c72; transform: translateY(-3px); box-shadow: 0 14px 40px rgba(0,0,0,.5); }
+  .card-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .card h2 { margin: 0; font-size: 18px; }
+  .tag { font-size: 11px; font-family: var(--mono); color: var(--cyan); border: 1px solid #17414f; border-radius: 999px; padding: 3px 9px; white-space: nowrap; }
+  .card p { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.7; }
+  .spec { display: flex; flex-wrap: wrap; gap: 6px; }
+  .spec span { font-size: 11px; color: #9fb2c4; background: #0a1016; border: 1px solid var(--line); border-radius: 6px; padding: 3px 8px; }
+  .go { margin-top: 4px; font-size: 13px; color: var(--cyan); font-weight: 600; }
+
+  .note { margin-top: 34px; border-top: 1px dashed var(--line); padding-top: 22px; color: var(--muted); font-size: 13px; line-height: 1.8; }
+  .note b { color: var(--text); }
+  .note code { font-family: var(--mono); color: var(--cyan); background: #0a1016; padding: 1px 6px; border-radius: 5px; }
+  .diagram { font-family: var(--mono); font-size: 12px; color: #9fb2c4; background: #0a1016; border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin-top: 14px; white-space: pre; overflow-x: auto; line-height: 1.6; }
+  footer { margin-top: 40px; color: #5d6f80; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>pixel-led</h1>
+    <p class="sub">
+      三个独立的 Web Demo，都在浏览器里模拟<b>「离散像素 + 有限色板」</b>的硬件 ——
+      不用真买屏就能看清不同技术方案的差别。全部零依赖，纯 ES 模块，无需构建。
+    </p>
+  </header>
+
+  <div class="cards">
+    <a class="card" href="led-studio/index.html">
+      <div class="card-top">
+        <h2>LED Studio</h2>
+        <span class="tag">HUB75 点阵屏</span>
+      </div>
+      <p>模拟真实点阵屏的驱动限制：扫描方式、色深、灯珠观感。10 个驱动效果，图片和视频可直接上屏。</p>
+      <div class="spec">
+        <span>8×8 ~ 256×128</span><span>RGB565 / 单色</span><span>固件 C 数组导出</span><span>RLE 帧</span>
+      </div>
+      <div class="go">打开 →</div>
+    </a>
+
+    <a class="card" href="pixel-bead-studio/index.html">
+      <div class="card-top">
+        <h2>拼豆工坊</h2>
+        <span class="tag">拼豆图案</span>
+      </div>
+      <p>三条生成路径：字符画、几何代码、AI 生成。落色到真实可购买的豆色，导出可直接去拼。</p>
+      <div class="spec">
+        <span>20×20 ~ 96×48</span><span>CIE Lab 落色</span><span>索引色 PNG</span><span>内置 11 图案</span>
+      </div>
+      <div class="go">打开 →</div>
+    </a>
+
+    <a class="card" href="miniled-studio/index.html">
+      <div class="card-top">
+        <h2>Mini-LED Studio</h2>
+        <span class="tag">背光分区调光</span>
+      </div>
+      <p>模拟 Mini-LED 背光：分区提取、扩散光晕、成像还原。和传统整屏背光实时对比。</p>
+      <div class="spec">
+        <span>96 ~ 9216 分区</span><span>4 种取值算法</span><span>光晕量化</span><span>实测 MAE / 功耗</span>
+      </div>
+      <div class="go">打开 →</div>
+    </a>
+  </div>
+
+  <div class="note">
+    <b>三者的关系（容易混）：</b>
+    <div class="diagram">LED Studio（点阵屏）          Mini-LED Studio（背光）
+  像素 = 灯珠本身               像素 = LCD 透光率 × 背光
+  间距 3~5mm，肉眼可见           间距 0.1~0.5mm，看不见
+  看"图案怎么显示"               看"分区怎么给光"
+          ↑
+    拼豆工坊（拼豆）
+    像素 = 一颗豆子，间距 5mm
+    产物既能拼实物，也能直接上点阵屏</div>
+    <p style="margin:14px 0 0">
+      <b>拼豆和点阵屏是同一件事的两面</b>：都是离散格子 + 有限色板，图案格式通用。
+      LED Studio 的「拼豆图案」上屏功能会直接读取拼豆工坊的图案库。
+    </p>
+  </div>
+
+  <div class="note">
+    <b>本地跑：</b>进任意子目录执行 <code>node server.mjs &lt;端口&gt;</code>。
+    必须用本地服务打开，<b>不能双击 index.html</b> —— 浏览器禁止 <code>file://</code> 下加载 ES 模块。
+  </div>
+
+  <footer>零依赖 · 纯 ES 模块 · 无构建步骤</footer>
+</div>
+</body>
+</html>

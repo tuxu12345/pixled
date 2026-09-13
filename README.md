@@ -36,6 +36,29 @@ LED Studio（点阵屏）        Mini-LED Studio（背光）
 
 ## 跑起来
 
+### 方式一：部署到 Vercel（推荐，零配置）
+
+**直接 import 本仓库即可，不需要任何构建配置。** 三个 demo 会自动出现在各自的路径下：
+
+```
+https://<你的项目>.vercel.app/                    ← 落地页（三个 demo 的总入口）
+https://<你的项目>.vercel.app/led-studio/         ← LED Studio
+https://<你的项目>.vercel.app/pixel-bead-studio/  ← 拼豆工坊
+https://<你的项目>.vercel.app/miniled-studio/     ← Mini-LED Studio
+```
+
+为什么能直接跑：三个 demo 是**纯静态 ES 模块**，没有任何服务端逻辑
+（`server.mjs` 只是本地开发用的静态文件服务器，Vercel 上用不到）。
+所有资源引用都是相对路径，`led-studio` 读取隔壁拼豆图案库用的也是相对路径
+`../../pixel-bead-studio/js/art.js`，在 Vercel 上解析成 `/pixel-bead-studio/js/art.js`，依然成立。
+
+`vercel.json` 只做了两件事：`cleanUrls: false`（保证 `/led-studio/` 这种路径能正常解析到
+`index.html`），以及显式声明 `.js` / `.css` / `.json` 的 Content-Type。
+
+> ⚠️ 根目录的 `index.html` 是**必须的**（Vercel 静态项目的规定）。它是三个 demo 的落地页。
+
+### 方式二：本地
+
 ```bash
 # 任选一个，进对应目录
 cd led-studio          && node server.mjs 8139
@@ -51,6 +74,12 @@ cd miniled-studio      && node server.mjs 8140
 
 跑 `led-studio` 时建议同时跑 `pixel-bead-studio` —— 前者的"拼豆图案"上屏功能会去读后者的图案库
 （读不到会退回自带图案，不会报错）。
+
+### 关于 AI 生成功能
+
+拼豆工坊的 AI 生成需要 DeepSeek API Key，**在页面里手动填入**，存在浏览器 localStorage
+（**不写进源码，也不会传到服务器**）。部署到 Vercel 后同样可用 —— 是浏览器直连
+`https://api.deepseek.com`，不经过任何后端代理。
 
 ---
 
@@ -98,6 +127,8 @@ cd miniled-studio      && node server.mjs 8140
 
 ```
 pixel-led/
+├─ index.html             落地页（三个 demo 的总入口，Vercel 需要根目录有 index.html）
+├─ vercel.json            Vercel 配置（cleanUrls + Content-Type）
 ├─ led-studio/            HUB75 点阵屏模拟器
 │  ├─ index.html
 │  ├─ server.mjs          静态服务（根 = 仓库根，为了能读隔壁拼豆图案库）
@@ -151,8 +182,9 @@ pixel-led/
 4. **`canvas.captureStream(30)` 在无头浏览器里录出 0 字节** —— 要用 `captureStream(0)` + `track.requestFrame()`。
 5. **量化时必须在钳位之后再套伽马** —— 加法图层叠加后可能超过 1，先套伽马会把高光算成 1.63 再被裁掉，丢掉图层关系。
 6. **手写 5×7 字库抄错了一个字** —— `Y` 的第 3 列写成 `0b1111000`，导致 `BYD` 显示成一坨。
-   现在字库改成**笔画定义生成位图**（写起止点，程序算格子），这类错误在结构上不可能再发生，
+   **已修复**：字库改成**笔画定义生成位图**（写起止点，程序算格子），这类错误在结构上不可能再发生，
    并加了 `auditGlyphs()` 密度自检（阈值按字母/标点分类，否则满屏误报）。
+   教训：手抄位图这种"看起来合理但错一位"的 bug，肉眼几乎发现不了 —— 能程序生成的就别手写。
 
 ### 拼豆
 7. **预览里的珠子中心孔不能打成真透明** —— 会透出底板，整片看起来又脏又糊。要用同色压暗。
