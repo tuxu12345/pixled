@@ -73,6 +73,8 @@ async function callDeepSeek(prompt, { signal, maxTokens, temperature } = {}) {
     },
     body: JSON.stringify({
       model: AI_CONFIG.model,
+      // prompt 可以是纯字符串，也可以是 OpenAI 兼容的 content 数组
+      // （图生点阵要传 [{type:'text'},{type:'image_url'}]，所以这里不能写死成字符串）
       messages: [{ role: 'user', content: prompt }],
       temperature: temperature ?? AI_CONFIG.temperature,
       max_tokens: maxTokens ?? AI_CONFIG.maxTokens,
@@ -257,37 +259,120 @@ async function generateDirect(desc, opts = {}) {
   };
 }
 
-/** 图生点阵：多模态输入（图片 dataURL） */
+/**
+ * 图生点阵：多模态输入（图片 dataURL）
+ *
+ * ★ 这里原来走的是 direct 路径（让模型直接吐网格），实测有严重问题：
+ *   用户传图 + 选 48×48 时，界面显示「图片已转成图案 · 0 色 · 0 颗」—— 空画布。
+ *   根因有两条：
+ *     1) 让模型直出 2304 个格子的 JSON，格式稍偏（比如返回数字嵌套、
+ *        或把 grid 包在别的字段里）就解析不到，而 normalizeGrid 拿到
+ *        "没有 grid" 时会**静默生成空画布并当成功返回**（grid.js:187）。
+ *     2) 画布越大，直出网格越不可靠，token 也越浪费。
+ *
+ *   改成走 spec 路径：模型只输出「形状 + 配色」的规格（几十到几百 token），
+ *   真正的格子由本地光栅化填充 —— 画布多大都不怕，而且落色、描边都能复用。
+ *
+ *   同时补上**空结果校验**：拿到空网格必须报错，绝不能再显示"成功"骗用户。
+ */
 export async function generateFromImage(imageDataUrl, opts = {}) {
-  const { size = '20x20', maxColors = 8, signal, onStage = () => {} } = opts;
+  const {
+    size = '20x20', maxColors = 8, beadSet = 'standard', beadSetName = '标准拼豆色卡',
+    autoOutline = true, snap = true, signal, onStage = () => {},
+  } = opts;
   const [cols, rows] = SIZES[size] || SIZES['20x20'];
-  onStage('上传图片并请求转像素…');
+  onStage('让模型看图做分镜（形状 + 配色）…');
   const t0 = performance.now();
-  const res = await fetch(`${AI_CONFIG.baseUrl}/chat/completions`, {
-    method: 'POST',
-    signal,
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${AI_CONFIG.apiKey}` },
-    body: JSON.stringify({
-      model: AI_CONFIG.model,
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'text', text: buildPrompt('把这张图转成拼豆图案（保留主体轮廓与主要配色）', cols, rows, maxColors, '标准拼豆色卡') },
-          { type: 'image_url', image_url: { url: imageDataUrl } },
-        ],
-      }],
-      max_tokens: Math.max(2600, Math.round(cols * rows * 3.4)),
-      temperature: 0.4,
-      thinking: { type: 'disabled' },
-    }),
+
+  const prompt = buildImageSpecPrompt(cols, rows, maxColors, beadSetName);
+  const r = await callDeepSeek(
+    [
+      { type: 'text', text: prompt },
+      { type: 'image_url', image_url: { url: imageDataUrl } },
+    ],
+    { signal, maxTokens: 2600, temperature: 0.35 },
+  );
+
+  const raw = extractJson(r.text);
+  if (!raw) {
+    throw new Error('模型没有返回可解析的 JSON（图生点阵需要多模态模型支持；'
+      + `当前模型 ${AI_CONFIG.model} 若不支持图像输入请换用支持视觉的模型）`);
+  }
+
+  // 形状规格 → 本地光栅化 → 落色
+  // ★ 注意 rasterizeSpec 的 snapTo 期望的是**色值数组**，不是豆种 ID。
+  //   我第一版传了字符串 'standard'，于是 nearestColor 去迭代这个字符串，
+  //   每次返回 's'（字符串第一个字符），结果整个调色板变成 ['s', ...]、
+  //   所有形状挤成 2 色。要用 BEAD_SETS[id].colors 里的 hex 数组。
+  const spec = normalizeSpec(raw, cols, rows);
+  if (!spec.shapes || !spec.shapes.length) {
+    throw new Error('模型没有给出任何形状（shapes 为空），无法生成图案。换一张主体更清晰的图再试。');
+  }
+  const beadHexes = snap
+    ? (BEAD_SETS[beadSet] || BEAD_SETS.standard).colors.map((c) => c[1])
+    : null;
+  const grid = rasterizeSpec(spec, cols, rows, {
+    outline: autoOutline,
+    snapTo: beadHexes,
   });
-  const json = await res.json();
-  if (json.error) throw new Error(`API ${res.status}: ${json.error.message}`);
-  const text = json.choices?.[0]?.message?.content || '';
-  const raw = extractJson(text);
-  if (!raw) throw new Error('模型没有返回可解析的 JSON（图生点阵需要多模态模型支持）');
-  const { grid, notes } = normalizeGrid(raw, { cols, rows });
-  return { grid, meta: { title: tidyTitle(raw.title, '图片图案'), ms: Math.round(performance.now() - t0), notes } };
+  if (!grid) throw new Error('光栅化失败：规格无法转成图案');
+
+  // ★ 空结果校验：0 颗豆必须当失败，不能再让界面显示"成功 · 0 色 · 0 颗"
+  const filled = typeof grid.counts === 'function' ? grid.counts().filled : 0;
+  if (!filled) {
+    throw new Error('转换结果为空（0 颗豆）。可能是图片主体太淡或模型没看懂，'
+      + '换一张对比度高、主体明确的图再试。');
+  }
+
+  return {
+    grid,
+    meta: {
+      title: tidyTitle(raw.title, '图片图案'),
+      ms: Math.round(performance.now() - t0),
+      notes: spec.notes || [],
+      usage: r.usage,
+      filled,
+    },
+  };
+}
+
+/**
+ * 图生点阵的提示词：让模型看图输出「形状规格」而不是直接吐网格。
+ *
+ * ★ 输出格式必须和 spec.js 的 normalizeSpec / rasterizeSpec 严格对齐：
+ *   顶层给 palette 数组，形状用 **color 索引**（不是 fill 十六进制）。
+ *
+ *   我第一版凭想象写成了 `"fill":"#RRGGBB"`，而 normalizeSpec 里是
+ *   `Number.isFinite(s?.color) ? s.color | 0 : 0` —— 十六进制字符串不是数字，
+ *   于是**所有形状的 color 都变成 0**，整幅图挤成两个颜色（主体 + 描边），
+ *   看起来就是"转出来只有 2 色、不像原图"。
+ */
+function buildImageSpecPrompt(cols, rows, maxColors, beadSetName) {
+  return [
+    '你在看用户上传的一张图片。请把它**简化成拼豆（Perler beads）图案的形状规格**，交给渲染器去画。',
+    '你不要直接输出像素网格，只输出几何形状清单。',
+    '',
+    `坐标规则（严格遵守，全部用 0~1 归一化坐标，0.5 就是正中间；画布 ${cols}×${rows}）：`,
+    '- cx, cy = 形状中心点；w, h = 形状宽高（占整幅画的比例）',
+    "- mirror:true 表示同一形状再镜像画到 cx' = 1-cx（左右对称的部位必须用它）",
+    '',
+    '只输出 JSON：',
+    '{"title":"四字以内作品名","palette":["#RRGGBB"],"shapes":[',
+    ' {"type":"ellipse","color":0,"cx":0.5,"cy":0.45,"w":0.66,"h":0.62},',
+    ' {"type":"triangle","color":1,"cx":0.30,"cy":0.19,"w":0.20,"h":0.26,"mirror":true}]}',
+    '',
+    '字段说明：',
+    '- type 只能取 ellipse / rect / capsule / triangle',
+    '- **color 是 palette 数组的下标（数字 0、1、2…），不是颜色值本身**',
+    `- palette 最多 ${maxColors} 色，要能落到现实中的${beadSetName}`,
+    '',
+    '画法要求：',
+    '- 8~16 个形状，按「从后到前」排序：先画大轮廓，再叠暗部和细节',
+    '- 主体轮廓要占满画面中部：大轮廓 w、h 都在 0.6 以上，cx≈0.5',
+    '- 用**大色块概括**，不要试图还原照片的所有细节；平涂，不要渐变',
+    '- 如果图片里有文字，忽略文字，只保留图形主体',
+    '- 任何形状都不要超出 [0.02, 0.98] 之外',
+  ].join('\n');
 }
 
 /* ---------------- 本地兜底生成（没填 API Key 也能把流程演示完） ---------------- */
