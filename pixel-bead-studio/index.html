@@ -44,6 +44,18 @@
       <button class="go" id="btnGo">生成</button>
     </div>
 
+    <!-- 图生点阵：本地图片 → 多模态大模型 → 可编辑拼豆图案
+         （后端能力在 js/ai.js 的 generateFromImage，这里补的是入口） -->
+    <div class="src-row">
+      <button class="icon" id="btnImg" title="把本地图片转成可编辑的拼豆图案">🖼 导入图片</button>
+      <div class="drop" id="drop">
+        <span>把图片拖到这里，或点左边「导入图片」</span>
+        <span class="small muted">扁平图标 / LOGO / 像素画效果最好，照片会糊 · JPG · PNG · WebP · GIF</span>
+      </div>
+    </div>
+    <input type="file" id="fileImg" accept="image/*" hidden />
+    <div class="src-info" id="srcInfo"></div>
+
     <div class="chips" id="chips">
       <button data-q="一只戴红色围巾的柴犬，正面坐姿，笑脸">柴犬</button>
       <button data-q="一只圆脸猫头鹰，戴小眼镜，肚皮是浅色">猫头鹰</button>

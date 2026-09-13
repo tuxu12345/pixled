@@ -235,9 +235,12 @@ async function cmdImage(args) {
   const rows = num(args.rows, 0) || Math.max(1, Math.round((img.height / img.width) * cols));
 
   const keyOut = args.keyColor ? { color: args.keyColor, tolerance: num(args.keyTolerance, 0.15) } : null;
+  // fit 默认 contain（保证整张图都在），不是 cover（会裁边）。
+  // 见 trace.mjs 里 imageToRaster 的注释：实测 cover 会把宽幅图的两端裁掉，
+  // 用户反馈的"上传图片生成每次拼豆都不全"就是这个。
   const raster = imageToRaster(img, {
     cols, rows,
-    fit: args.fit || 'cover',
+    fit: args.fit || 'contain',
     brightness: num(args.brightness, 1),
     contrast: num(args.contrast, 1),
     saturation: num(args.saturation, 1),

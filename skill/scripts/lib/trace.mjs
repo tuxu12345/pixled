@@ -226,10 +226,18 @@ export async function loadImage(filePath, opts = {}) {
  *   keyOut: {color:'#RRGGBB', tolerance:0~1}  抠掉某个背景色
  * }
  * @returns {Raster} 目标尺寸的 raster（供 toBeads 用）
+ *
+ * ★ fit 默认是 'contain' 而不是 'cover' —— 这一点很重要：
+ *   上传的照片/截图通常比目标格子大很多，宽高比也往往和目标不一致。
+ *   用 'cover'（铺满裁切）会把两边裁掉：实测一张 1800×600 的图转 48×48，
+ *   左端的标记直接消失，用户看到的就是"图案不全"（这是实际反馈的问题）。
+ *   'contain' 保证整张图都在，代价是短边方向留白（透明格）。
+ *   要"零留白又完整"，正确做法是**按源图宽高比决定目标格子数**，
+ *   见 generate.mjs 里 image 命令的自动 rows。
  */
 export function imageToRaster(img, opts = {}) {
   const {
-    cols, rows, fit = 'cover',
+    cols, rows, fit = 'contain',
     brightness = 1, contrast = 1, saturation = 1,
     invert = false, threshold = 0, keyOut = null,
   } = opts;

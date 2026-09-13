@@ -1,7 +1,7 @@
 /* 拼豆工坊 —— UI 控制器（简化版：一条主线，其余收进「更多选项」和「编辑」） */
 import { PixelGrid } from './grid.js';
 import { BEAD_SETS } from './palette.js';
-import { AI_CONFIG, generateFromText, mockGenerate } from './ai.js';
+import { AI_CONFIG, generateFromText, generateFromImage, mockGenerate } from './ai.js';
 import { paintGridToCanvas, exportPNG, drawGrid, drawChecker } from './render.js';
 import { toCHeader, toJSON, toBinaryFrame, toHexDump, download, downloadDataUrl, copyText } from './export.js';
 import { buildTheme, imageLayer, datetimeLayer, themeReport, initThemePack } from './themepack.js';
@@ -17,6 +17,18 @@ const LS_KEY = 'pbs.key';
 const show = (id) => $(id).classList.add('show');
 const hide = (id) => $(id).classList.remove('show');
 const isShown = (id) => $(id).classList.contains('show');
+
+/**
+ * art.js 的 artToGrid() 返回的是省内存的"鸭子类型"网格：只有 get/set/clone/counts，
+ * 没有 resize（点尺寸按钮会崩）、也没有 ensureColor（进编辑一画就崩）。
+ * 凡是外部网格进 state 的地方都先升格成真正的 PixelGrid，保证后面所有方法都在。
+ */
+function asPixelGrid(g) {
+  if (!g || typeof g.resize === 'function') return g;
+  const p = PixelGrid.create(g.cols, g.rows, (g.palette || []).slice());
+  p.grid = Int8Array.from(g.grid);
+  return p;
+}
 
 const state = {
   grid: null,
@@ -146,7 +158,7 @@ function renderLibrary(filter = '') {
     b.appendChild(s);
     b.onclick = () => {
       snapshot();
-      state.grid = artToGrid(item);
+      state.grid = asPixelGrid(artToGrid(item));
       state.title = item.name;
       state.desc = '';
       state.libPick = item.id;
@@ -239,7 +251,308 @@ async function generate({ useMock = false } = {}) {
   }
 }
 
+/* ============================ 图生点阵（导入图片） ============================
+   分工：浏览器只负责「读文件 / 解码 / 体检」，真正的图→格点转换交给 js/ai.js 的
+   generateFromImage（多模态大模型，一次请求）。
+   两条实测结论直接写进界面文案：
+     · 扁平图标 / LOGO / 像素画 效果好，照片会糊成一团（边缘碎、颜色杂）
+     · 尺寸越大越认得出主体 —— 20×20 只够画一个符号，所以导入时默认提到 48×48
+   注意：图生点阵没有离线兜底（文生才有 mockGenerate），没配 Key 必须明确报错。 */
+
+const IMG_MIME = /^image\//;
+const IMG_EXT = /\.(png|jpe?g|webp|gif|bmp|avif)$/i;
+const IMG_MAX_MB = 8;
+const IMG_SIZE_RECOMMEND = '48x48';
+
+function isImageFile(file) {
+  if (IMG_MIME.test(file.type || '')) return true;
+  return !file.type && IMG_EXT.test(file.name || ''); // 有些来源不给 MIME，退回看扩展名
+}
+
+function readAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(String(fr.result || ''));
+    fr.onerror = () => reject(new Error('浏览器读不出这个文件'));
+    fr.readAsDataURL(file);
+  });
+}
+
+function decodeImage(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('格式不支持或文件损坏'));
+    img.src = dataUrl;
+  });
+}
+
+/**
+ * 本地体检：这张图适不适合转拼豆？
+ * 把图画到 32×32 上，看「量化后的颜色数」和「相邻像素跳变的比例」——
+ * 扁平图标/LOGO 通常 < 48 色、边缘 < 14%；照片随便就 150+ 色、边缘 24% 以上。
+ * 中间地带不妄下结论（返回两个 false），避免给出假结论。
+ */
+function analyzeImage(img) {
+  const N = 32;
+  try {
+    const cv = document.createElement('canvas');
+    cv.width = N; cv.height = N;
+    const ctx = cv.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return null;
+    ctx.drawImage(img, 0, 0, N, N);
+    const px = ctx.getImageData(0, 0, N, N).data;
+    const lum = new Float32Array(N * N).fill(-1);
+    const seen = new Set();
+    let opaque = 0;
+    for (let p = 0; p < N * N; p++) {
+      const i = p * 4;
+      if (px[i + 3] < 32) continue; // 透明格不参与统计
+      opaque++;
+      lum[p] = (0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2]) / 255;
+      seen.add(((px[i] >> 4) << 8) | ((px[i + 1] >> 4) << 4) | (px[i + 2] >> 4));
+    }
+    let edges = 0, cells = 0;
+    for (let y = 1; y < N; y++) {
+      for (let x = 1; x < N; x++) {
+        const a = lum[y * N + x];
+        if (a < 0) continue;
+        cells++;
+        const l = lum[y * N + x - 1], u = lum[(y - 1) * N + x];
+        if ((l >= 0 && Math.abs(a - l) > 0.18) || (u >= 0 && Math.abs(a - u) > 0.18)) edges++;
+      }
+    }
+    const distinct = seen.size;
+    const edgeRatio = cells ? edges / cells : 0;
+    return {
+      distinct, edgeRatio, opaqueRatio: opaque / (N * N),
+      photoLike: distinct > 150 || edgeRatio > 0.24,
+      flatLike: distinct <= 48 && edgeRatio < 0.14,
+    };
+  } catch {
+    return null; // 体检只是建议，失败不能挡住主流程
+  }
+}
+
+/** srcInfo 面板：mono 多行，用 textContent（文件名可能带奇怪字符，不能拼 HTML） */
+function setSrcInfo(text, kind = 'on') {
+  const el = $('srcInfo');
+  el.className = 'src-info ' + kind;
+  el.textContent = text;
+}
+
+function importFail(msg) {
+  status('导入失败：' + msg, 'err');
+  toast('导入失败：' + msg, 'err');
+  console.error('[导入图片]', msg);
+}
+
+/** 把 fetch / 解析抛出的原始错误翻成人话（原始信息附在后面，方便排查） */
+function humanImageError(e) {
+  const raw = String((e && e.message) || e || '未知错误');
+  if (e && e.name === 'SyntaxError') return `模型返回的不是 JSON（${raw}）—— 多半是 Base URL 指错了，或服务端返回了 HTML 错误页。`;
+  if (/failed to fetch|networkerror|load failed|fetch failed/i.test(raw)) {
+    return `连不上模型服务 ${AI_CONFIG.baseUrl}（${raw}）。检查网络 / Base URL，或点设置里的「测试连通性」。`;
+  }
+  if (/\b(401|403)\b/.test(raw) || /api key|unauthor|invalid.*key/i.test(raw)) {
+    return `API 拒绝了这次请求（多半是 Key 不对）：${raw}`;
+  }
+  if (/多模态/.test(raw)) return `${raw} —— 换一个支持图片输入的多模态模型。`;
+  return raw;
+}
+
+/**
+ * 导入图片主流程：File → dataURL → <img> → 本地体检 → generateFromImage → 现有显示/编辑链路。
+ * 全程不吞异常：每一步失败都会写进 #status 和 #toast，并落到 #srcInfo 上留下现场。
+ */
+async function importImageFile(file) {
+  if (!file) return;
+  const fname = file.name || '未命名图片';
+
+  try {
+    if (!isImageFile(file)) {
+      importFail(`「${fname}」不是图片（${file.type || '没有 MIME 类型'}），只能导入图片文件。`);
+      return;
+    }
+    if (file.size > IMG_MAX_MB * 1024 * 1024) {
+      importFail(`「${fname}」有 ${(file.size / 1048576).toFixed(1)}MB，超过 ${IMG_MAX_MB}MB。先压一下再导入。`);
+      return;
+    }
+
+    // 1) 先调尺寸：图片转豆子比手绘更需要分辨率
+    const prevSize = state.size;
+    if ((parseInt(state.size, 10) || 20) < (parseInt(IMG_SIZE_RECOMMEND, 10) || 48)) {
+      setSize(IMG_SIZE_RECOMMEND);
+    }
+    const sizeNote = state.size === prevSize
+      ? `尺寸 ${state.size}`
+      : `尺寸 ${prevSize} → ${state.size}（图片转豆子越大越认得出主体）`;
+
+    // 2) 读文件
+    status(`正在读取「${fname}」…`, 'busy');
+    setSrcInfo(`图片：${fname}\n状态：读取中…`, 'on');
+    let dataUrl;
+    try {
+      dataUrl = await readAsDataUrl(file);
+    } catch (e) {
+      importFail(`「${fname}」读不出来：${e.message}`);
+      return;
+    }
+
+    // 3) 解码（顺带拿到真实像素尺寸，判断这图有多大信息量）
+    status('正在解码图片…', 'busy');
+    let img;
+    try {
+      img = await decodeImage(dataUrl);
+    } catch (e) {
+      importFail(`「${fname}」打不开：${e.message}。试试重新导出成 PNG 再导入。`);
+      return;
+    }
+    const dims = `${img.naturalWidth}×${img.naturalHeight}`;
+    if (!img.naturalWidth || !img.naturalHeight) {
+      importFail(`「${fname}」解出来是空图（${dims}）。`);
+      return;
+    }
+
+    // 4) 本地体检，先说实话
+    const look = analyzeImage(img);
+    const lookText = look
+      ? `${look.distinct} 种量化色 · 边缘占比 ${(look.edgeRatio * 100).toFixed(0)}%`
+      : '未能体检（跳过）';
+    const noAlpha = !!look && look.opaqueRatio > 0.98; // 没有透明背景 → 背景也会被当成豆子铺满
+    const lookTag = !look ? '' : look.photoLike
+      ? ` → 偏照片，效果可能糊${noAlpha ? '，而且没有透明背景' : ''}`
+      : look.flatLike ? ' → 扁平图，适合转豆子' : '';
+    if (look && look.photoLike) {
+      status(`这张图偏「照片」（${lookText}）：转成拼豆多半会糊。换成扁平 / 纯色背景${noAlpha ? '（最好是带透明背景）' : ''}的图标或 LOGO 会好很多。仍按 ${state.size} 试一次…`, 'busy');
+    } else if (look && look.flatLike) {
+      status(`这张图是扁平 / 图标类（${lookText}），很适合转拼豆。${sizeNote}`, 'busy');
+    } else {
+      status(`图片 ${dims}（${lookText}）。${sizeNote}`, 'busy');
+    }
+    setSrcInfo([
+      `图片：${fname}（${dims} · ${(file.size / 1024).toFixed(0)}KB）`,
+      `体检：${lookText}${lookTag}`,
+      `准备：${sizeNote}`,
+      '状态：图片已就绪，等待转成图案…',
+    ].join('\n'), look && look.photoLike ? 'warn' : 'on');
+
+    applyConfig();
+
+    // 5) 没 Key 就明确报错 —— 图生点阵没有离线兜底，绝不能静默失败
+    if (!AI_CONFIG.apiKey) {
+      const why = '图生点阵要走多模态大模型，但当前没配 API Key。点右上角 ⚙ 填 Key（存在本机浏览器）后重新导入。';
+      status('导入失败：' + why, 'err');
+      toast('导入失败：没配 API Key，图片转图案没法离线兜底', 'err');
+      setSrcInfo([
+        `图片：${fname}（${dims} · ${(file.size / 1024).toFixed(0)}KB）`,
+        `体检：${lookText}${lookTag}`,
+        `准备：${sizeNote}`,
+        '状态：图片已读取，但没能转成图案。',
+        '原因：' + why,
+      ].join('\n'), 'err');
+      console.error('[导入图片]', why);
+      return;
+    }
+
+    // 6) 真正转换（ai.js 的 generateFromImage）
+    $('btnImg').disabled = true;
+    setAiPill('busy', '图片转换中…');
+    const stages = [];
+    try {
+      const out = await generateFromImage(dataUrl, {
+        size: state.size,
+        maxColors: parseInt($('maxColors').value, 10) || 8,
+        onStage: (t) => { stages.push(t); status(t, 'busy'); },
+      });
+
+      // 7) 接进现有的显示 / 编辑链路（和 generate() 完全同一条路）
+      const st = out.grid.counts();
+      snapshot();
+      state.grid = out.grid;
+      state.title = out.meta.title || fname.replace(/\.[^.]+$/, '').slice(0, 6) || '图片图案';
+      state.desc = `图片：${fname}`;
+      state.libPick = '';
+      state.color = out.grid.palette[1] || out.grid.palette[0] || '#FF8A00';
+      $('customColor').value = state.color;
+      renderSwatches(); render(); renderLibrary($('search').value.trim());
+      setEditing(true); // 导入的图一定要能马上改：直接进编辑态
+
+      const verdict = judgeBeadQuality(out.grid, look);
+      const notes = (out.meta.notes || []).join('；');
+      setSrcInfo([
+        `图片：${fname}（${dims}）`,
+        `图案：${out.grid.cols}×${out.grid.rows} · ${st.colors} 色 · ${st.filled} 颗 · ${((out.meta.ms || 0) / 1000).toFixed(1)}s`,
+        `体检：${lookText}${lookTag}`,
+        notes ? `修复：${notes}` : '',
+        verdict.text,
+      ].filter(Boolean).join('\n'), verdict.ok ? 'on' : 'warn');
+      status(`图片已转成图案：${out.grid.cols}×${out.grid.rows} · ${st.colors} 色 · ${st.filled} 颗 —— ${verdict.text}`, verdict.ok ? 'ok' : 'warn');
+      toast(`已把「${fname}」转成图案「${state.title}」`, 'ok');
+    } catch (e) {
+      const msg = humanImageError(e);
+      importFail(msg);
+      setSrcInfo([
+        `图片：${fname}（${dims}）`,
+        `体检：${lookText}${lookTag}`,
+        `准备：${sizeNote}`,
+        `阶段：${stages.join(' → ') || '未进入转换'}`,
+        '状态：图片已读取，但转换失败。',
+        '原因：' + msg,
+      ].join('\n'), 'err');
+    } finally {
+      $('btnImg').disabled = false;
+      applyConfig();
+    }
+  } catch (e) {
+    // 兜底：任何漏网的异常都要有可见反馈，不能让按钮变成"点了没反应"
+    importFail(humanImageError(e));
+    console.error(e);
+  }
+}
+
+/**
+ * 转换后的诚实评价：不吹好看，只指出「为什么这次效果可能不行」+ 怎么改。
+ * 判据都是可解释的：覆盖率（背景有没有被一起转）、色数是否顶到上限、尺寸够不够。
+ */
+function judgeBeadQuality(grid, look) {
+  const st = grid.counts();
+  const coverage = st.filled / (grid.cols * grid.rows);
+  const maxColors = parseInt($('maxColors').value, 10) || 8;
+  const bad = [];
+  if (look && look.photoLike) bad.push('原图偏照片（色块碎、边缘多）');
+  if (coverage > 0.9) bad.push(`豆子铺满了 ${(coverage * 100).toFixed(0)}% 的画布，背景多半也被转了进来`);
+  if (st.colors >= maxColors && maxColors > 1) bad.push(`用满了 ${maxColors} 色，说明原图配色很杂`);
+  if (grid.cols < 32) bad.push(`${grid.cols}×${grid.rows} 太小，只够画一个符号`);
+  if (!bad.length) {
+    return { ok: true, text: `质量还行：${st.colors} 色、覆盖率 ${(coverage * 100).toFixed(0)}%、主体没贴满边。想更细可以把尺寸再调大。` };
+  }
+  return { ok: false, text: `质量提示：${bad.join('；')}。换成扁平 / 纯色背景的图标或 LOGO，并把尺寸调到 48×48 以上，效果会明显变好。` };
+}
+
 /* ============================ 编辑 ============================ */
+
+/** 编辑态的开关（按钮和「导入图片」成功后都会走这里） */
+function setEditing(on) {
+  state.editing = !!on;
+  $('editor').classList.toggle('open', state.editing);
+  $('canvasWrap').classList.toggle('edit', state.editing);
+  $('btnEdit').textContent = state.editing ? '✎ 完成' : '✎ 编辑';
+  render();
+}
+
+/** 切尺寸：按钮和「导入图片」共用，保证 state.size 和画布永远一致 */
+function setSize(size, { resizeGrid = true } = {}) {
+  const [c, r] = String(size).split('x').map(Number);
+  if (!c || !r) return;
+  state.size = size;
+  [...$('sizeSeg').children].forEach((x) => x.classList.toggle('on', x.dataset.size === size));
+  if (resizeGrid && state.grid && (state.grid.cols !== c || state.grid.rows !== r)) {
+    snapshot();
+    state.grid = asPixelGrid(state.grid).resize(c, r);
+    render(); renderSwatches();
+  }
+}
 
 function pos(ev) {
   const r = $('canvas').getBoundingClientRect();
@@ -448,14 +761,16 @@ function bindUI() {
   $('sizeSeg').onclick = (e) => {
     const b = e.target.closest('button[data-size]');
     if (!b) return;
-    state.size = b.dataset.size;
-    [...$('sizeSeg').children].forEach((x) => x.classList.toggle('on', x === b));
-    const [c, r] = state.size.split('x').map(Number);
-    if (state.grid && (state.grid.cols !== c || state.grid.rows !== r)) {
-      snapshot();
-      state.grid = state.grid.resize(c, r);
-      render(); renderSwatches();
-    }
+    setSize(b.dataset.size);
+  };
+
+  // ---- 导入图片：按钮 / 拖拽 两条入口都汇到 importImageFile ----
+  $('btnImg').onclick = () => $('fileImg').click();
+  $('drop').onclick = () => $('fileImg').click();
+  $('fileImg').onchange = (e) => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = ''; // 清空，同一张图能连续导入两次
+    if (f) importImageFile(f);
   };
 
   $('beadSet').onchange = () => { renderSwatches(); render(); };
@@ -491,11 +806,7 @@ function bindUI() {
   };
 
   $('btnEdit').onclick = () => {
-    state.editing = !state.editing;
-    $('editor').classList.toggle('open', state.editing);
-    $('canvasWrap').classList.toggle('edit', state.editing);
-    $('btnEdit').textContent = state.editing ? '✎ 完成' : '✎ 编辑';
-    render();
+    setEditing(!state.editing);
     if (state.editing) toast('左键上色，可切换铅笔/橡皮/油漆桶');
   };
   $('tools').onclick = (e) => {
@@ -570,15 +881,36 @@ function bindUI() {
 
 /* ============================ 启动 ============================ */
 
+/** 拖拽导入（和 led-studio 的 #drop 同一套做法：只有图片走转换，其它给明确提示） */
+function bindDrop() {
+  const drop = $('drop');
+  const over = (e) => { e.preventDefault(); drop.classList.add('over'); };
+  const leave = () => drop.classList.remove('over');
+  ['dragenter', 'dragover'].forEach((ev) => {
+    drop.addEventListener(ev, over);
+    // 不让浏览器在页面别处"打开"被拖进来的文件（否则会直接跳走，看起来像崩了）
+    document.addEventListener(ev, (e) => e.preventDefault());
+  });
+  ['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, leave));
+  drop.addEventListener('drop', (e) => {
+    e.preventDefault();
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (!f) return;
+    if (isImageFile(f)) importImageFile(f);
+    else importFail(`拖进来的「${f.name || '文件'}」不是图片（${f.type || '没有 MIME 类型'}），只能导入图片文件。`);
+  });
+}
+
 function boot() {
   bindUI();
   bindCanvas();
+  bindDrop();
 
   const saved = localStorage.getItem(LS_KEY);
   if (saved) $('apiKey').value = saved;
   applyConfig();
 
-  state.grid = artToGrid(LIBRARY[0]);
+  state.grid = asPixelGrid(artToGrid(LIBRARY[0]));
   state.title = LIBRARY[0].name;
   state.color = state.grid.palette[2] || state.grid.palette[0];
   $('customColor').value = state.color;
@@ -587,8 +919,8 @@ function boot() {
   render();
   renderLibrary();
   status(apiKey()
-    ? 'AI 已就绪。写一句描述，回车即生成。'
-    : '写一句描述点「生成」即可（没配 API Key 会用内置图案演示）。点右上角 ⚙ 填 Key 开启真实 AI 生成。');
+    ? 'AI 已就绪。写一句描述回车即生成，也可以「导入图片」把本地图转成图案。'
+    : '写一句描述点「生成」（没配 API Key 会用内置图案演示）；「导入图片」需要先点右上角 ⚙ 填 Key。');
 }
 
 // 无论初始化出什么问题，都不能让按钮变成死的
