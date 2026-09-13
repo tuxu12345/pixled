@@ -1,0 +1,10 @@
+{
+  "name": "led-studio",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "LED 点阵屏效果 Demo：虚拟点阵 + 驱动效果 + 任意图片/视频导入播放",
+  "scripts": {
+    "start": "node server.mjs 8139"
+  }
+}

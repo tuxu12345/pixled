@@ -1,0 +1,10 @@
+{
+  "name": "miniled-studio",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Mini-LED 背光分区调光 Demo：分区提取、背光扩散、光晕量化、对比度对比",
+  "scripts": {
+    "start": "node server.mjs 8140"
+  }
+}

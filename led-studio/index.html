@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>LED Studio · 点阵屏效果 Demo</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='%230b1017'/><circle cx='4' cy='4' r='1.6' fill='%2300d8ff'/><circle cx='8' cy='4' r='1.6' fill='%23ff8a00'/><circle cx='12' cy='4' r='1.6' fill='%23e8352b'/><circle cx='4' cy='8' r='1.6' fill='%2335e08a'/><circle cx='8' cy='8' r='1.6' fill='%23ffd400'/><circle cx='12' cy='8' r='1.6' fill='%237b4bc9'/><circle cx='4' cy='12' r='1.6' fill='%23fff'/><circle cx='8' cy='12' r='1.6' fill='%2300d8ff'/><circle cx='12' cy='12' r='1.6' fill='%23ff8a00'/></svg>" />
+<link rel="stylesheet" href="css/app.css" />
+</head>
+<body>
+
+<!-- 启动失败兜底。两种可能：file:// 打开（最常见），或模块真的加载失败。
+     具体显示哪一种由下面的脚本按 location.protocol 判断 —— 不要一律赖到 file:// 上。 -->
+<div id="fileGuard" class="guard">
+  <div class="guard-box">
+    <h2 id="guardTitle">需要用本地服务打开</h2>
+    <div id="guardBody">
+      <p>你现在是直接双击打开的 <code>index.html</code>。浏览器禁止 <code>file://</code> 下加载 ES 模块，
+         所以页面脚本根本没跑起来 —— 按钮会全部没反应。</p>
+      <p>在 <code>led-studio</code> 目录下执行：</p>
+      <pre>node server.mjs 8139</pre>
+      <p>然后访问 <a href="http://127.0.0.1:8139/" target="_blank" rel="noopener">http://127.0.0.1:8139/</a></p>
+    </div>
+  </div>
+</div>
+
+<header class="top">
+  <div class="top-l">
+    <span class="logo" aria-hidden="true"></span>
+    <b>LED Studio</b>
+    <span class="top-sub">虚拟点阵屏 · 驱动效果 · 任意图片/视频上屏</span>
+  </div>
+  <div class="top-r">
+    <span class="pill" id="fps">-- FPS</span>
+    <span class="pill" id="panelInfo">64 × 32</span>
+  </div>
+</header>
+
+<main>
+  <!-- ================= 虚拟屏 ================= -->
+  <section class="card stage">
+    <div class="stage-head">
+      <div>
+        <h1 id="stageTitle">滚动文字</h1>
+        <p class="meta" id="stageMeta">点阵屏最经典的效果</p>
+      </div>
+      <div class="stage-tools">
+        <button class="icon" id="btnPlay">⏸ 暂停</button>
+        <button class="icon" id="btnShot">⤓ 截图</button>
+        <button class="icon primary" id="btnOpenExport">导出</button>
+      </div>
+    </div>
+
+    <div class="led-frame" id="ledFrame">
+      <canvas id="led"></canvas>
+      <div class="led-gloss"></div>
+    </div>
+
+    <div class="stage-foot">
+      <label class="mini">亮度 <input type="range" id="brightness" min="10" max="130" value="100" /><b id="brightnessVal">100%</b></label>
+      <label class="mini">时间轴 <input type="range" id="timeline" min="0" max="1000" value="0" /><b id="timelineVal">0.0s</b></label>
+      <label class="chk"><input type="checkbox" id="paused" /> 暂停</label>
+      <span class="spacer"></span>
+      <span class="hint" id="fxHint"></span>
+    </div>
+  </section>
+
+  <div class="cols">
+    <!-- ================= 左：内容 ================= -->
+    <section class="card">
+      <h2>内容来源</h2>
+
+      <div class="src-btns">
+        <button class="icon" id="btnImg">🖼 导入图片</button>
+        <button class="icon primary" id="btnVid">🎬 导入视频</button>
+        <button class="icon" id="btnBead">拼豆图案</button>
+      </div>
+      <input type="file" id="fileImg" accept="image/*" hidden />
+      <input type="file" id="fileVid" accept="video/*" hidden />
+
+      <div class="drop" id="drop">
+        <span>把图片 / 视频拖到这里</span>
+        <span class="tiny muted">图片 JPG/PNG/GIF/WebP · 视频 MP4/WebM</span>
+      </div>
+
+      <div class="src-info" id="srcInfo">当前：无外部素材（用的是内置效果）</div>
+
+      <div class="video-ctrl" id="videoCtrl" hidden>
+        <button class="icon" id="btnVidPlay">播放</button>
+        <button class="icon" id="btnVidLoop">循环:开</button>
+        <label class="mini">音量 <input type="range" id="vidVol" min="0" max="100" value="0" /></label>
+        <span class="tiny muted" id="vidMeta"></span>
+      </div>
+
+      <h2>上屏方式</h2>
+      <div class="seg" id="videoModeSeg">
+        <button data-vmode="fullscreen" class="on">全屏显示</button>
+        <button data-vmode="imgScroll">横向滚动</button>
+        <button data-vmode="scanline">扫描线扫过</button>
+      </div>
+
+      <h2>采样设置</h2>
+      <div class="grid2">
+        <label class="mini">适配
+          <select id="fit">
+            <option value="cover" selected>铺满裁切</option>
+            <option value="contain">完整装入</option>
+            <option value="stretch">拉伸</option>
+          </select>
+        </label>
+        <label class="mini">抖动
+          <select id="dither">
+            <option value="1" selected>开（去色带）</option>
+            <option value="0">关</option>
+          </select>
+        </label>
+      </div>
+      <label class="mini">对比度 <input type="range" id="contrast" min="50" max="250" value="100" /><b id="contrastVal">1.0</b></label>
+      <label class="mini">饱和度 <input type="range" id="saturation" min="0" max="250" value="100" /><b id="saturationVal">1.0</b></label>
+      <label class="mini">阈值(单色用) <input type="range" id="threshold" min="0" max="100" value="0" /><b id="thresholdVal">关</b></label>
+      <label class="chk"><input type="checkbox" id="invert" /> 反相</label>
+    </section>
+
+    <!-- ================= 中：屏参数 ================= -->
+    <section class="card">
+      <h2>屏参数</h2>
+      <div class="presets" id="presets">
+        <button data-panel="64x32">64×32 单屏</button>
+        <button data-panel="64x64" class="on">64×64</button>
+        <button data-panel="96x48">96×48（我们的车屏）</button>
+        <button data-panel="128x32">128×32 双屏串联</button>
+        <button data-panel="32x16">32×16 小屏</button>
+        <button data-panel="128x64">128×64 四屏</button>
+      </div>
+      <div class="grid2">
+        <label class="mini">宽 <input type="number" id="cols" min="8" max="256" value="64" /></label>
+        <label class="mini">高 <input type="number" id="rows" min="8" max="128" value="64" /></label>
+      </div>
+
+      <h2>色深（真实屏就是这个限制）</h2>
+      <select id="colorMode">
+        <option value="rgb888">RGB888 · 24bit</option>
+        <option value="rgb666">RGB666 · 18bit</option>
+        <option value="rgb565" selected>RGB565 · 16bit（HUB75 常见）</option>
+        <option value="rgb332">RGB332 · 8bit（低端屏）</option>
+        <option value="mono">单色琥珀 · 1bit</option>
+        <option value="mono_blue">单色蓝 · 1bit</option>
+      </select>
+      <label class="mini">伽马 <input type="range" id="gamma" min="10" max="30" value="22" /><b id="gammaVal">2.2</b></label>
+
+      <h2>屏的观感</h2>
+      <label class="mini">灯珠形状
+        <select id="ledShape">
+          <option value="round" selected>圆形（贴片 LED）</option>
+          <option value="square">方形（模组）</option>
+        </select>
+      </label>
+      <label class="mini">灯珠间隙 <input type="range" id="gap" min="0" max="45" value="18" /><b id="gapVal">18%</b></label>
+      <label class="mini">辉光 <input type="range" id="bloom" min="0" max="100" value="55" /><b id="bloomVal">55%</b></label>
+      <label class="chk"><input type="checkbox" id="scanlines" /> 模拟扫描线</label>
+
+      <div class="stats" id="stats"></div>
+    </section>
+
+    <!-- ================= 右：效果 ================= -->
+    <section class="card">
+      <h2>驱动效果</h2>
+      <div class="fx-grid" id="fxGrid"></div>
+      <div class="fx-params" id="fxParams"></div>
+      <p class="tiny muted" id="fxDesc"></p>
+
+      <h2>快捷演示</h2>
+      <div class="quick" id="quick">
+        <button data-demo="welcome">🚗 到车欢迎（呼吸+文字）</button>
+        <button data-demo="typhoon">❄ 下雪</button>
+        <button data-demo="demo">🌈 等离子炫技</button>
+        <button data-demo="test">🎨 彩条测试（验屏用）</button>
+        <button data-demo="bars">📺 色深对比</button>
+      </div>
+    </section>
+  </div>
+</main>
+
+<!-- ================= 导出弹窗 ================= -->
+<div class="modal" id="exportModal">
+  <div class="modal-box">
+    <h3>导出 <span class="tiny muted" id="exportHint"></span></h3>
+    <div class="seg" id="exportSeg">
+      <button data-kind="c" class="on">固件 C 数组</button>
+      <button data-kind="bin">下发帧（RLE）</button>
+      <button data-kind="json">图案 JSON</button>
+      <button data-kind="webm">录制 WebM 视频</button>
+      <button data-kind="frames">导出帧序列</button>
+    </div>
+    <pre class="code" id="code"></pre>
+    <div class="modal-actions">
+      <button class="icon" id="btnCloseExport">关闭</button>
+      <button class="icon" id="btnCopy">复制</button>
+      <button class="icon primary" id="btnDownload">下载 / 开始录制</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/**
+ * 启动兜底。
+ *
+ * 关键点：不要一律说是 "file:// 打开"。分两种情况，给准确的诊断 ——
+ * 之前只有一句 file:// 的话，万一将来模块真的加载失败，会把人误导到错误方向。
+ */
+(function () {
+  var isFile = location.protocol === 'file:';
+  setTimeout(function () {
+    if (window.__LED_STUDIO_BOOTED__) return;   // 正常启动，不打扰
+
+    var title = document.getElementById('guardTitle');
+    var body = document.getElementById('guardBody');
+
+    if (isFile) {
+      // 情况一：确认是 file:// —— 保持原来的指引
+      title.textContent = '需要用本地服务打开';
+    } else {
+      // 情况二：不是 file:// 但脚本仍没起来 —— 说明是加载/运行时报错，别赖 file://
+      title.textContent = '页面脚本没有启动';
+      body.innerHTML =
+        '<p>你是通过本地服务打开的（不是 file://），但 <code>js/app.js</code> 没有跑起来，' +
+        '所以按钮没反应。这通常是某个模块加载失败或报错了。</p>' +
+        '<p>请打开浏览器控制台（<code>F12</code> → Console）看具体报错；' +
+        '常见原因是某个 <code>js/</code> 下的文件缺失或路径写错。</p>' +
+        '<p class="tiny">当前地址：<code>' + location.href + '</code></p>' +
+        '<p class="tiny">可以先直接访问 <a id="guardProbe" href="js/app.js" target="_blank">js/app.js</a>' +
+        ' 确认它能被取到（应显示一段 JS 源码，而不是 404）。</p>';
+    }
+    document.getElementById('fileGuard').classList.add('show');
+  }, 1500);
+})();
+</script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

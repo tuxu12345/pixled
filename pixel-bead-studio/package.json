@@ -1,0 +1,11 @@
+{
+  "name": "pixel-bead-studio",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "拼豆工坊 · AI 文/图 转像素点阵 → HUB75 LED 屏 Demo（DeepSeek 驱动）",
+  "scripts": {
+    "start": "node server.mjs 8137",
+    "dev": "node server.mjs 8137"
+  }
+}

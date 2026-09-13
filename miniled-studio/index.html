@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mini-LED 背光分区调光 Demo</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='%230b1017'/><rect x='2' y='2' width='5' height='5' fill='%23fff'/><rect x='9' y='2' width='5' height='5' fill='%23555'/><rect x='2' y='9' width='5' height='5' fill='%23555'/><rect x='9' y='9' width='5' height='5' fill='%23111'/></svg>" />
+<link rel="stylesheet" href="css/app.css" />
+</head>
+<body>
+
+<div id="fileGuard" class="guard">
+  <div class="guard-box">
+    <h2 id="guardTitle">需要用本地服务打开</h2>
+    <div id="guardBody">
+      <p>你现在是直接双击打开的 <code>index.html</code>。浏览器禁止 <code>file://</code> 下加载 ES 模块，
+         所以脚本没跑起来 —— 按钮会全部没反应。</p>
+      <p>在 <code>miniled-studio</code> 目录下执行：</p>
+      <pre>node server.mjs 8140</pre>
+      <p>然后访问 <a href="http://127.0.0.1:8140/" target="_blank" rel="noopener">http://127.0.0.1:8140/</a></p>
+    </div>
+  </div>
+</div>
+
+<header class="top">
+  <div class="top-l">
+    <b>Mini-LED 背光分区调光</b>
+    <span class="top-sub">分区提取 · 背光扩散 · 光晕量化 · 对比传统侧光式</span>
+  </div>
+  <div class="top-r">
+    <span class="pill" id="panelInfo">32×18 分区</span>
+    <button class="icon" id="btnExport">⤓ 导出对比报告</button>
+  </div>
+</header>
+
+<main>
+  <!-- ================= 成像对比 ================= -->
+  <section class="card">
+    <div class="stage-head">
+      <div>
+        <h1>成像对比</h1>
+        <p class="meta">同一个画面，两种背光方案的最终成像 —— 差别就在背光怎么给</p>
+      </div>
+      <div class="seg" id="viewSeg">
+        <button data-view="compare" class="on">三图对比</button>
+        <button data-view="global">只看传统</button>
+        <button data-view="zoned">只看 Mini-LED</button>
+      </div>
+    </div>
+
+    <div class="compare" id="compareGrid">
+      <figure class="shot" id="cardSrc">
+        <figcaption><b>原始画面</b><span>参考基准</span></figcaption>
+        <canvas id="cvSrc"></canvas>
+      </figure>
+      <figure class="shot" id="cardGlobal">
+        <figcaption><b>传统整屏背光</b><span>edge-lit：一个亮度管全屏</span></figcaption>
+        <canvas id="cvGlobal"></canvas>
+      </figure>
+      <figure class="shot hi" id="cardZoned">
+        <figcaption><b>Mini-LED 分区调光</b><span>每块自己决定亮度</span></figcaption>
+        <canvas id="cvZoned"></canvas>
+      </figure>
+    </div>
+
+    <div class="options">
+      <label class="chk"><input type="checkbox" id="chkZones" /> 叠加分区网格</label>
+      <label class="chk"><input type="checkbox" id="chkBacklight" checked /> 显示背光场</label>
+      <span class="spacer"></span>
+      <span class="hint">最终画面 = LCD 透光率 × 背光亮度</span>
+    </div>
+
+    <div class="backlight-wrap" id="backlightWrap">
+      <div class="bl-label">背光场（热力图）—— 这是分区调光的"幕后"，越亮表示该处背光给得越足</div>
+      <canvas id="cvBacklight"></canvas>
+    </div>
+
+    <div class="stats" id="stats"></div>
+  </section>
+
+  <div class="cols">
+    <!-- ================= 素材 ================= -->
+    <section class="card">
+      <h2>测试画面</h2>
+      <div class="pattern-list" id="patternList"></div>
+      <div class="src-btns">
+        <button class="icon primary" id="btnUpload">🖼 上传自己的图片</button>
+      </div>
+      <input type="file" id="fileImg" accept="image/*" hidden />
+      <div class="src-info" id="srcInfo"></div>
+      <p class="tiny muted">
+        不同画面能暴露的问题不一样：<b>星空</b>看暗场、<b>白字黑底</b>看光晕、<b>灰阶渐变</b>看格子感。
+      </p>
+    </section>
+
+    <!-- ================= 分区参数 ================= -->
+    <section class="card">
+      <h2>分区设置 <span class="muted tiny">共 <b id="zoneCount">576</b> 个分区</span></h2>
+      <div class="zone-presets" id="zonePresets"></div>
+
+      <label class="mini">横向分区 <input type="range" id="zoneCols" min="2" max="128" value="32" /><b id="zoneColsVal">32</b></label>
+      <label class="mini">纵向分区 <input type="range" id="zoneRows" min="2" max="72" value="18" /><b id="zoneRowsVal">18</b></label>
+
+      <h2>背光取值算法 <span class="muted tiny">画质差异的核心</span></h2>
+      <select id="method">
+        <option value="max">max — 取区块最亮像素</option>
+        <option value="mean">mean — 取平均</option>
+        <option value="rms">rms — 均方根</option>
+        <option value="hybrid" selected>hybrid — max/mean 加权（厂商常用）</option>
+      </select>
+      <label class="mini" id="hybridRow">max 权重 <input type="range" id="hybridWeight" min="0" max="100" value="65" /><b id="hybridWeightVal">0.65</b></label>
+
+      <label class="mini">背光扩散 <input type="range" id="spread" min="0" max="40" value="6" /><b id="spreadVal">6px</b></label>
+      <label class="mini">分区最低亮度 <input type="range" id="minBoost" min="0" max="100" value="2" /><b id="minBoostVal">2%</b></label>
+      <label class="mini">整体提亮 <input type="range" id="boost" min="50" max="150" value="100" /><b id="boostVal">1.00×</b></label>
+      <p class="tiny muted">
+        扩散模拟背光板的导光/扩散膜：光会横向串到邻区，这正是<b>光晕</b>的物理来源。
+        扩散越小越锐利，但真实面板做不到 0。
+      </p>
+    </section>
+
+    <!-- ================= 面板参数 ================= -->
+    <section class="card">
+      <h2>面板特性 <span class="muted tiny">决定了上限</span></h2>
+      <label class="mini">面板漏光 <input type="range" id="leak" min="0" max="100" value="15" /><b id="leakVal">1.5‱</b></label>
+      <label class="mini">原生对比度 <input type="range" id="panelContrast" min="500" max="20000" value="5000" step="500" /><b id="panelContrastVal">5,000:1</b></label>
+      <label class="mini">伽马 <input type="range" id="gamma" min="10" max="30" value="22" /><b id="gammaVal">2.2</b></label>
+      <p class="tiny muted">
+        <b>漏光</b>是黑场下不去、对比度封顶的根本原因：LCD 关不严，背光再暗也有一点光透出来。
+        Mini-LED 再好也越不过面板原生对比度这道坎。
+      </p>
+
+      <h2>这个 demo 想说明什么</h2>
+      <ol class="notes">
+        <li><b>收益是"还原精度 + 省电"，不是"黑得更黑"。</b>
+          实测夜景窗户场景：重建误差 <code>0.0293 → 0.0059</code>（准近 5 倍），
+          同时背光功耗 <code>100% → 13.7%</code>。多余的光一点不给，这才是省电的本质。</li>
+        <li><b>光晕是物理必然。</b>背光经扩散膜会串到邻区，没法像素级精确。
+          分区越多光晕越小，扩散越大边界越柔和。</li>
+        <li><b>max 与 mean 的取舍。</b>max 保住高光但耗电；
+          mean 省电，但含高光的分区被平均低 → 高光被吃掉。</li>
+      </ol>
+    </section>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  var isFile = location.protocol === 'file:';
+  setTimeout(function () {
+    if (window.__MINILED_BOOTED__) return;
+    var title = document.getElementById('guardTitle');
+    var body = document.getElementById('guardBody');
+    if (isFile) {
+      title.textContent = '需要用本地服务打开';
+    } else {
+      title.textContent = '页面脚本没有启动';
+      body.innerHTML = '<p>不是 <code>file://</code> 打开的，但 <code>js/app.js</code> 没跑起来。' +
+        '请打开控制台（F12 → Console）看报错。</p><p class="tiny">当前地址：<code>' + location.href + '</code></p>';
+    }
+    document.getElementById('fileGuard').classList.add('show');
+  }, 1500);
+})();
+</script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

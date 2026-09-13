@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>拼豆工坊 · AI 生成像素图案</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='%2300d8ff'/><rect x='3' y='3' width='4' height='4' fill='%230b1017'/><rect x='9' y='3' width='4' height='4' fill='%230b1017'/><rect x='3' y='9' width='4' height='4' fill='%230b1017'/><rect x='9' y='9' width='4' height='4' fill='%230b1017'/></svg>" />
+<link rel="stylesheet" href="css/app.css" />
+</head>
+<body>
+
+<!-- file:// 兜底提示：模块脚本在 file:// 下被浏览器拦截，必须提示用户起服务 -->
+<div id="fileGuard" class="guard">
+  <div class="guard-box">
+    <h2>需要用本地服务打开</h2>
+    <p>你现在是直接双击打开的 <code>index.html</code>。浏览器禁止 <code>file://</code> 下加载 ES 模块，
+       所以页面里的脚本根本没跑起来 —— 这就是"点了没反应"的原因。</p>
+    <p>在 <code>pixel-bead-studio</code> 目录下执行：</p>
+    <pre>node server.mjs 8137</pre>
+    <p>然后访问 <a href="http://127.0.0.1:8137/" target="_blank" rel="noopener">http://127.0.0.1:8137/</a></p>
+    <p class="guard-sub">（架构图 <code>architecture.html</code> 是自包含的，双击能直接看。）</p>
+  </div>
+</div>
+
+<!-- ================= 顶栏 ================= -->
+<header class="top">
+  <div class="top-l">
+    <span class="logo" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <b>拼豆工坊</b>
+    <span class="top-sub">一句话生成像素图案 → 直接上 96×48 屏</span>
+  </div>
+  <div class="top-r">
+    <span class="pill" id="aiState">未配置 AI</span>
+    <button class="icon" id="btnSettings" title="设置">⚙</button>
+  </div>
+</header>
+
+<main>
+  <!-- ================= 1. 输入 ================= -->
+  <section class="card input-card">
+    <div class="prompt-row">
+      <input id="prompt" type="text" autocomplete="off"
+             placeholder="描述你想要的图案，例如：一只戴红色围巾的柴犬" />
+      <button class="go" id="btnGo">生成</button>
+    </div>
+
+    <div class="chips" id="chips">
+      <button data-q="一只戴红色围巾的柴犬，正面坐姿，笑脸">柴犬</button>
+      <button data-q="一只圆脸猫头鹰，戴小眼镜，肚皮是浅色">猫头鹰</button>
+      <button data-q="80年代街机游戏里的像素鸭子，黄嘴橘脚">像素鸭</button>
+      <button data-q="红色白点小蘑菇，任天堂风格">小蘑菇</button>
+      <button data-q="一颗红色爱心，带白色高光">爱心</button>
+      <button data-q="我自己的车，银色三厢轿车">我的车</button>
+    </div>
+
+    <div class="bar">
+      <span class="bar-label">尺寸</span>
+      <div class="seg" id="sizeSeg">
+        <button data-size="20x20" class="on">20×20</button>
+        <button data-size="32x32">32×32</button>
+        <button data-size="48x48">48×48</button>
+        <button data-size="96x48">96×48</button>
+      </div>
+      <span class="bar-label">豆色</span>
+      <select id="beadSet" class="mini-select">
+        <option value="standard" selected>标准豆</option>
+        <option value="mini">迷你豆</option>
+        <option value="glow">夜光豆</option>
+        <option value="none">不限色</option>
+      </select>
+      <button class="link" id="btnMore">更多选项</button>
+    </div>
+
+    <div class="more" id="more">
+      <label>生成方式
+        <select id="mode">
+          <option value="spec" selected>语义分镜 → 本地渲染（推荐）</option>
+          <option value="direct">大模型直出网格</option>
+        </select>
+      </label>
+      <label>最大色数 <input id="maxColors" type="range" min="3" max="16" value="8" /><b id="maxColorsVal">8</b></label>
+      <label>创造力 <input id="temp" type="range" min="0" max="100" value="70" /></label>
+      <label>模型 <input id="model" type="text" value="deepseek-v4-flash" /></label>
+    </div>
+
+    <div class="status" id="status">填好描述点「生成」。没配 API Key 也能点，会用内置图案演示流程。</div>
+  </section>
+
+  <!-- ================= 2. 画布 ================= -->
+  <section class="card stage-card">
+    <div class="stage-head">
+      <div>
+        <h1 id="title">智趣猫头鹰</h1>
+        <p class="meta" id="meta">29 × 29 · 7 色 · 430 颗</p>
+      </div>
+      <div class="stage-tools">
+        <button class="icon" id="btnEdit" title="自己改一改">✎ 编辑</button>
+        <button class="icon" id="btnShuffle" title="随机换配色">🎲</button>
+        <button class="icon" id="btnExport" title="导出">⤓ 导出</button>
+        <button class="icon primary" id="btnSend" title="生成下发帧">发送到屏幕</button>
+      </div>
+    </div>
+
+    <div class="canvas-wrap" id="canvasWrap">
+      <canvas id="canvas"></canvas>
+      <div class="cursor" id="cursor"></div>
+    </div>
+
+    <!-- 编辑面板：默认隐藏，点「编辑」才出现 -->
+    <div class="editor" id="editor">
+      <div class="tools" id="tools">
+        <button data-tool="pen" class="on" title="铅笔">✎</button>
+        <button data-tool="eraser" title="橡皮">⌫</button>
+        <button data-tool="fill" title="油漆桶">🪣</button>
+        <button data-tool="picker" title="吸管">💧</button>
+        <button data-tool="line" title="直线">╱</button>
+        <button data-tool="rect" title="矩形">▭</button>
+      </div>
+      <div class="swatches" id="swatches"></div>
+      <button class="icon" id="btnUndo" title="撤销">↶</button>
+      <label class="pick">自定义 <input type="color" id="customColor" value="#ff8a00" /></label>
+    </div>
+  </section>
+
+  <!-- ================= 3. 图案库 ================= -->
+  <section class="card">
+    <div class="lib-head">
+      <b>图案库</b>
+      <span class="muted">点一下直接换掉上面的图案</span>
+      <input id="search" type="text" placeholder="搜索…" />
+    </div>
+    <div class="lib" id="lib"></div>
+  </section>
+</main>
+
+<!-- ================= 设置弹窗 ================= -->
+<div class="modal" id="settings">
+  <div class="modal-box">
+    <h3>设置</h3>
+    <label>API Base URL
+      <input id="apiBase" type="text" value="https://api.deepseek.com" />
+    </label>
+    <label>API Key（只存在本机浏览器里）
+      <input id="apiKey" type="password" placeholder="sk-..." />
+    </label>
+    <p class="muted small">Demo 是纯前端，请求直接从浏览器发往 DeepSeek。生产环境应改走服务端代理，
+      避免 Key 暴露、并做配额与内容审核。</p>
+    <div class="modal-actions">
+      <button class="icon" id="btnCloseSettings">关闭</button>
+      <button class="icon" id="btnSave">保存</button>
+      <button class="icon primary" id="btnTest">测试连通性</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 导出弹窗 ================= -->
+<div class="modal" id="exportModal">
+  <div class="modal-box wide">
+    <h3>导出 <span class="muted small" id="exportHint"></span></h3>
+    <div class="seg" id="exportSeg">
+      <button data-kind="png" class="on">PNG 图片</button>
+      <button data-kind="c">ESP32 C 数组</button>
+      <button data-kind="theme">Clockwise 主题</button>
+      <button data-kind="json">图案 JSON</button>
+      <button data-kind="bin">下发帧</button>
+    </div>
+    <pre class="code" id="code"></pre>
+    <div class="modal-actions">
+      <button class="icon" id="btnCloseExport">关闭</button>
+      <button class="icon" id="btnCopy">复制</button>
+      <button class="icon primary" id="btnDownload">下载</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- 兜底：模块脚本最终没跑起来（file:// 或网络问题）就显示提示 -->
+<script>
+  setTimeout(function () {
+    if (!window.__PBS_BOOTED__) document.getElementById('fileGuard').classList.add('show');
+  }, 1500);
+</script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

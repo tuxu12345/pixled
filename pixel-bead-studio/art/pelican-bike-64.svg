@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- 64×64，直接对应 Clockwise / HUB75 单屏画布 -->
+
+  <!-- ==================== 自行车 ==================== -->
+  <g>
+    <!-- 后轮：外胎(深) / 轮圈(中灰) / 花鼓 -->
+    <circle cx="15" cy="48" r="11" fill="#1A1A1A"/>
+    <circle cx="15" cy="48" r="9"  fill="#9B9B9B"/>
+    <circle cx="15" cy="48" r="7"  fill="#F2F2F2"/>
+    <circle cx="15" cy="48" r="1.6" fill="#1A1A1A"/>
+    <!-- 前轮 -->
+    <circle cx="49" cy="48" r="11" fill="#1A1A1A"/>
+    <circle cx="49" cy="48" r="9"  fill="#9B9B9B"/>
+    <circle cx="49" cy="48" r="7"  fill="#F2F2F2"/>
+    <circle cx="49" cy="48" r="1.6" fill="#1A1A1A"/>
+    <!-- 后下叉 / 下管 / 后上叉 / 立管 / 上管 / 前叉 -->
+    <line x1="15" y1="48" x2="30" y2="49" stroke="#C0392B" stroke-width="1.6"/>
+    <line x1="30" y1="49" x2="22" y2="37" stroke="#C0392B" stroke-width="1.6"/>
+    <line x1="15" y1="48" x2="22" y2="37" stroke="#C0392B" stroke-width="1.6"/>
+    <line x1="30" y1="49" x2="42" y2="37" stroke="#C0392B" stroke-width="1.6"/>
+    <line x1="22" y1="37" x2="41" y2="37" stroke="#C0392B" stroke-width="1.6"/>
+    <line x1="42" y1="37" x2="49" y2="48" stroke="#C0392B" stroke-width="1.6"/>
+    <!-- 车把立管 + 车把 -->
+    <line x1="42" y1="37" x2="43" y2="31" stroke="#C0392B" stroke-width="1.6"/>
+    <line x1="40" y1="31" x2="48" y2="31" stroke="#C0392B" stroke-width="1.6"/>
+    <!-- 车座 -->
+    <path d="M18 36 L26 36 L25 38 L18 38 Z" fill="#1A1A1A"/>
+    <!-- 牙盘 + 曲柄 + 脚踏 -->
+    <circle cx="30" cy="49" r="3.5" fill="#F2F2F2"/>
+    <circle cx="30" cy="49" r="3.5" fill="none" stroke="#1A1A1A" stroke-width="1"/>
+    <line x1="30" y1="49" x2="33" y2="54" stroke="#1A1A1A" stroke-width="1.4"/>
+    <line x1="29" y1="54" x2="36" y2="54" stroke="#1A1A1A" stroke-width="1.4"/>
+  </g>
+
+  <!-- ==================== 鹈鹕 ==================== -->
+  <g>
+    <!-- 腿：从肚子到脚踏 -->
+    <line x1="27" y1="38" x2="31" y2="47" stroke="#FFA300" stroke-width="2.2"/>
+    <line x1="31" y1="47" x2="33" y2="53" stroke="#FFA300" stroke-width="2.2"/>
+    <!-- 尾羽 -->
+    <path d="M11 22 L20 26 L18 33 L11 31 Z" fill="#E8A03C"/>
+    <!-- 脖子：实心楔形，连接头与身体 -->
+    <path d="M28 34 L31 22 L39 21 L41 32 Z" fill="#FFF3C4"/>
+    <!-- 身体 -->
+    <ellipse cx="28" cy="31" rx="11" ry="7.5" fill="#FFF3C4"/>
+    <!-- 翅膀 -->
+    <path d="M22 28 C 26 24, 34 25, 37 29 C 33 34, 24 34, 22 28 Z" fill="#E8A03C"/>
+    <path d="M22 28 C 26 24, 34 25, 37 29 C 33 34, 24 34, 22 28 Z" fill="none" stroke="#3E2A20" stroke-width="1"/>
+    <!-- 头 -->
+    <circle cx="42" cy="23" r="6" fill="#FFF3C4"/>
+    <!-- 上喙：朝右前方 -->
+    <path d="M46 20 L62 23 L46 25 Z" fill="#FFA300"/>
+    <!-- 喉囊：喙下方鼓起的袋子 -->
+    <path d="M46 25 C 49 32, 59 32, 62 24 Z" fill="#FFD400"/>
+    <!-- 眼睛 -->
+    <circle cx="44" cy="21" r="1.8" fill="#1A1A1A"/>
+    <circle cx="44.6" cy="20.4" r="0.6" fill="#FFFFFF"/>
+    <!-- 冠羽 -->
+    <path d="M39 17 L40 13 L42 16 L43 12 L45 16 L46 13 L47 17 Z" fill="#E8A03C"/>
+    <!-- 翅尖搭到车把 -->
+    <line x1="37" y1="29" x2="44" y2="30" stroke="#3E2A20" stroke-width="1.2"/>
+  </g>
+
+  <!-- 地面 -->
+  <line x1="2" y1="60" x2="62" y2="60" stroke="#4A4A4A" stroke-width="1"/>
+</svg>
