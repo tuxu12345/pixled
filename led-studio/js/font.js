@@ -11,6 +11,10 @@
 export const GLYPH_W = 5;
 export const GLYPH_H = 7;
 
+/* 中文走系统字体实时栅格化（手写点阵不可能覆盖几千个汉字） */
+import { isWideChar, rasterizeChar, readabilityWarning, cjkFontStack, measureCjkText, clearCjkCache } from './cjkfont.js';
+export { isWideChar, rasterizeChar, readabilityWarning, cjkFontStack, measureCjkText, clearCjkCache };
+
 /** 把一组笔画画进 5×7 的位图（每列一个字节，bit0 = 最上面一行） */
 function strokes(lines) {
   const g = new Uint8Array(5);
@@ -145,6 +149,10 @@ function drawGlyphData(buf, glyph, x, y, scale, rgb) {
  * 用户看到的"字号 2 很丑"就是这个叠字，跟字库抄没抄错无关。
  */
 export function drawChar(buf, ch, x, y, scale, rgb) {
+  // ---- 中文 / 全角字符：走系统字体实时栅格化（见 cjkfont.js）----
+  if (isWideChar(ch)) return drawCjkChar(buf, ch, x, y, scale, rgb);
+
+  // ---- 拉丁 / 数字 / 符号：走内置 5×7 点阵字库（更锐利、更快）----
   const wide = charWidth(ch) === 2;
   const glyph = getGlyph(ch);
   if (glyph) {
@@ -156,11 +164,80 @@ export function drawChar(buf, ch, x, y, scale, rgb) {
   return ((wide ? GLYPH_W * 2 + 1 : GLYPH_W) + 1) * scale;
 }
 
-/** 测量一段文字占多少格宽 */
+/**
+ * 测量一段文字占多少格宽（单位：格；含每个字后面的 1 格字距）。
+ *
+ * ★ 统一规则（中文支持时反复踩坑才理清，别再改乱）：
+ *
+ *   scale 的含义 = **拉丁字符占几格高**（原字库是 7 格高，所以 scale=1 → 7 格）
+ *
+ *   拉丁字符：固定 5 格宽 + 1 格字距，两者都乘 scale
+ *              → (5+1)*scale 格
+ *   中文    ：栅格化到"和中文字高相当的格数"（cjkCells），
+ *              栅格化出来的 w/h **就是最终的格数**（绘制时 1 像素 = 1 格）
+ *              → advance + 1 格，**不再乘 scale**
+ *
+ *   曾经的错误写法 `(advance + scale) * scale` 把 scale 算了两遍，
+ *   字号 2 时「北」量出 36 格、实际只占 18 格，中英混排更是全乱。
+ */
 export function measureText(text, scale = 1) {
-  let w = 0;
-  for (const ch of String(text)) w += (charWidth(ch) === 2 ? GLYPH_W * 2 + 1 : GLYPH_W) + 1;
-  return w * scale;
+  let cells = 0;
+  for (const ch of String(text)) {
+    if (isWideChar(ch)) {
+      cells += rasterizeChar(ch, cjkCells(scale)).advance + 1;
+    } else {
+      cells += (GLYPH_W + 1) * scale;
+    }
+  }
+  return Math.round(cells);
+}
+
+/**
+ * 中文字号：把"格宽 scale"换算成最终要占的**格高**。
+ * ASCII 点阵是 7 格高，中文用 8 格跟它视觉高度相当（中文自带上下留白）。
+ */
+function cjkCells(scale) { return Math.max(7, Math.round(8 * scale)); }
+
+/**
+ * 画一个中文字。
+ *
+ * ★ 这里踩过一个"scale 平方"的坑：原来栅格化尺寸写的是 8*scale，
+ *   绘制时又按 scale 放大每个像素，scale 被算了两遍 ——
+ *   字号 2 的汉字变成 4 倍大，"欢迎光临"4 个字把 96 格屏直接撑爆。
+ *
+ *   正确做法：**栅格化到最终要占的格数**（cjkCells），绘制时 1 像素 = 1 格。
+ *   缩放完全由"栅格化到多大"控制，绘制阶段不再缩放。
+ */
+function drawCjkChar(buf, ch, x, y, scale, rgb) {
+  const g = rasterizeChar(ch, cjkCells(scale));
+  const [r, gg, b] = rgb;
+
+  // 垂直居中：中英混排时和 ASCII 的基线对齐
+  const asciiH = GLYPH_H * scale;
+  const top = y + Math.max(0, Math.round((asciiH - g.h) / 2));
+
+  if (g.ink) {
+    for (let gy = 0; gy < g.h; gy++) {
+      for (let gx = 0; gx < g.w; gx++) {
+        if (!g.bits[gy * g.w + gx]) continue;
+        buf.set(x + gx, top + gy, r, gg, b);
+      }
+    }
+  }
+  return g.advance + 1;   // 字宽 + 1 格字距
+}
+/**
+ * 文字"实宽"：从第一列墨迹到最后一列墨迹，不含尾部那 1 格字距。
+ *
+ * 居中必须用它，不能用 measureText —— measureText 把尾部字距也算进去了，
+ * 居中时整段文字会系统性地偏左 scale/2 格：字号 4 的 "BX" 在 64 宽屏上
+ * 左留白 8 格、右留白 12 格，一眼就能看出没居中。
+ * 尾部空格也要去掉，否则 "HI  " 会把空格算进宽度里。
+ */
+export function inkWidth(text, scale = 1) {
+  const t = String(text).replace(/\s+$/, '');
+  if (!t) return 0;
+  return Math.max(1, measureText(t, scale) - scale);
 }
 
 /** 把文字直接画进缓冲（不滚动） */
