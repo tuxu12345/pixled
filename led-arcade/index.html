@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#17191b"><meta name="description" content="把街机装进一块 LED。Neon Run，一个可以在点阵屏里玩的横版小游戏。">
+  <title>LED Arcade · 像素之间，自有冒险</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23fa8753'/%3E%3Cpath d='M8 8h5v12h11v5H8z' fill='%2317191b'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./css/app.css">
+</head>
+<body>
+<svg class="icon-defs" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs>
+<symbol id="i-play" viewBox="0 0 24 24"><path d="m8 5 11 7-11 7z"/></symbol>
+<symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
+<symbol id="i-reset" viewBox="0 0 24 24"><path d="M4 10a8 8 0 1 1 1 7M4 4v6h6"/></symbol>
+<symbol id="i-expand" viewBox="0 0 24 24"><path d="M8 4H4v4m12-4h4v4M4 16v4h4m12-4v4h-4"/></symbol>
+<symbol id="i-sound" viewBox="0 0 24 24"><path d="m4 9 4 0 5-4v14l-5-4H4zM17 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/></symbol>
+<symbol id="i-save" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></symbol>
+<symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol>
+<symbol id="i-bolt" viewBox="0 0 24 24"><path d="m14 2-9 12h7l-2 8 9-12h-7z"/></symbol>
+</defs></svg>
+<header class="topbar"><div class="topbar-inner">
+  <a class="brand" href="./" aria-label="LED Arcade 首页"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><strong>LED<span>ARCADE</span></strong><span class="lab-tag">PLAY LAB</span></a>
+  <div class="header-note"><span class="status-dot"></span> 小屏幕，大冒险 <span class="divider"></span><span class="mono">VOL. 004</span></div>
+</div></header>
+<main>
+  <section class="intro"><div><div class="eyebrow"><span></span> A LITTLE SCREEN. A WHOLE NEW WORLD.</div><h1>像素之间，自有冒险<span>。</span></h1><p>让每颗灯珠都有戏。一个能看、能玩、能带走的 LED 横版街机。</p></div><div class="intro-stamp"><span>INSERT CURIOSITY</span><strong>PRESS PLAY <svg><use href="#i-arrow"/></svg></strong></div></section>
+  <div class="workspace">
+    <section class="arcade" aria-label="Neon Run 游戏机">
+      <div class="game-heading"><div class="game-id">01<span> / GAME CARTRIDGE</span></div><span class="pill">横版动作 · 单人</span></div>
+      <div class="game-title"><div><h2>NEON RUN<span>霓虹疾行</span></h2><p>跃过断层，击退守卫，找回城市最后的信号。</p></div><span class="pixel-invader" aria-hidden="true">▟▙<br>▜▛</span></div>
+      <div id="cabinet" class="cabinet">
+        <div class="bezel-meta"><span><i class="status-dot"></i> <span id="screenState">ATTRACT MODE</span></span><span id="screenSpec">96 × 48 · RGB565</span></div>
+        <div id="screenWrap" class="screen-wrap"><canvas id="screen" tabindex="0" aria-label="Neon Run LED 游戏画面，方向键移动，空格跳跃，J 射击">你的浏览器需要支持 Canvas 才能运行游戏。</canvas><div class="screen-reflection"></div></div>
+        <div class="bezel-bottom"><span class="panel-label">DOT MATRIX DISPLAY</span><div class="screen-stage"><span id="stageLabel">01 — NEON FRONTIER</span><span class="live-dot"></span><span id="fps">60 FPS</span></div></div>
+        <div class="touch-controls fullscreen-controls" aria-label="全屏触控"><div><button data-control="left" aria-label="全屏向左移动">←</button><button data-control="right" aria-label="全屏向右移动">→</button></div><div><button class="touch-shoot" data-control="shoot" aria-label="全屏射击">J<span>射击</span></button><button class="touch-jump" data-control="jump" aria-label="全屏跳跃">↑<span>跳跃</span></button></div></div>
+        <div class="fullscreen-toolbar"><button id="fsPause" class="btn secondary">暂停</button><button id="fsRestart" class="btn secondary">重新开始</button><button id="fsNext" class="btn primary">下一关</button><button id="fsExit" class="btn secondary">退出全屏</button></div>
+      </div>
+      <div class="progress-line"><span id="runLabel">自动演示中 · 随时加入冒险</span><div class="progress-track"><i id="progress"></i></div><span id="progressValue">0%</span></div>
+      <div class="transport"><button id="play" class="btn primary"><svg><use href="#i-play"/></svg><span>开始游戏</span><kbd>ENTER</kbd></button><button id="pause" class="btn secondary" title="暂停 / 继续 (P)"><svg><use href="#i-pause"/></svg><span>暂停</span></button><button id="restart" class="icon-btn" aria-label="重新开始" title="重新开始 (R)"><svg><use href="#i-reset"/></svg></button><div class="transport-end"><button id="demo" class="text-btn active" aria-pressed="true"><span class="status-dot"></span>自动演示</button><button id="sound" class="icon-btn muted" aria-label="开启音效" aria-pressed="false" title="音效"><svg><use href="#i-sound"/></svg></button><button id="fullscreen" class="icon-btn" aria-label="全屏游戏" title="全屏游戏 (F)"><svg><use href="#i-expand"/></svg></button></div></div>
+      <div class="controls-guide"><span><kbd>←</kbd><kbd>→</kbd> 移动</span><span><kbd>SPACE</kbd> 跳跃 / 二段跳</span><span><kbd>J</kbd> 射击</span><span class="guide-note">也支持 WASD 与 K</span></div>
+      <div class="touch-controls" aria-label="触屏游戏控制"><div><button data-control="left" aria-label="向左移动">←</button><button data-control="right" aria-label="向右移动">→</button></div><div><button class="touch-shoot" data-control="shoot" aria-label="射击">J<span>射击</span></button><button class="touch-jump" data-control="jump" aria-label="跳跃">↑<span>跳跃</span></button></div></div>
+      <div class="score-strip"><div><span>本局得分</span><strong id="score">00000</strong></div><div><span>最高记录</span><strong id="best">00000</strong></div><div><span>收集能量</span><strong class="energy"><svg><use href="#i-bolt"/></svg><span id="coins">00</span></strong></div><div><span>剩余生命</span><strong id="lives" class="lives" aria-label="3 条生命">♥ ♥ ♥</strong></div></div>
+    </section>
+    <aside class="settings" aria-label="屏幕设置">
+      <div class="settings-title"><h2>调一块你的屏</h2><span class="mono">DISPLAY</span></div>
+      <div class="setting-section"><div class="field-heading"><span>点阵分辨率</span><span class="small-label">2 : 1</span></div><div class="resolution-group" role="group" aria-label="点阵分辨率"><button data-cols="96" data-rows="48" class="selected" aria-pressed="true">96 × 48</button><button data-cols="128" data-rows="64" aria-pressed="false">128 × 64</button><button data-cols="192" data-rows="96" aria-pressed="false">192 × 96</button></div><p class="field-help" id="resolutionHelp">经典车屏 · 4,608 颗灯珠</p></div>
+      <div class="setting-section"><label class="field-heading" for="brightness"><span>屏幕亮度</span><output id="brightnessValue">85%</output></label><input type="range" id="brightness" min="15" max="100" value="85"><div class="range-labels"><span>柔和</span><span>明亮</span></div><label class="field-heading glow-label" for="bloom"><span>灯珠辉光</span><output id="bloomValue">35%</output></label><input type="range" id="bloom" min="0" max="80" value="35"><div class="range-labels"><span>清晰</span><span>氛围</span></div></div>
+      <div class="setting-section"><div class="field-heading"><span>显示质感</span></div><div class="segmented" role="group" aria-label="显示质感"><button id="ledMode" class="selected" aria-pressed="true"><span class="dot-icon">⠿</span> LED 灯珠</button><button id="pixelMode" aria-pressed="false"><span>▦</span> 纯净像素</button></div><label class="switch-row" for="scanlines"><span>扫描线<span class="field-help">一点复古的味道</span></span><input type="checkbox" id="scanlines" role="switch"><span class="switch" aria-hidden="true"></span></label></div>
+      <div class="export-section"><div class="field-heading"><span>带走这一帧</span><svg><use href="#i-save"/></svg></div><div class="export-buttons"><button id="exportPNG">保存 PNG <span>↗</span></button><button id="exportRGB">RGB565 <span>↗</span></button></div><p class="field-help">画面可保存，像素也能走进真实的屏。</p></div>
+      <div class="display-note"><span class="note-cross">+</span><span>每一格，都是一颗灯珠。<br>每一帧，都是一场冒险。</span><span class="note-cross">+</span></div>
+    </aside>
+  </div>
+  <section class="levels" aria-label="选择关卡"><div class="section-heading"><h2>一路向前<span>THE JOURNEY</span></h2><span>三段旅程，一个信号 <span class="arrow-line">⟶</span></span></div><div class="level-grid">
+    <button class="level-card selected" data-stage="0" aria-pressed="true"><div class="level-thumb"><canvas id="thumb0" width="96" height="48" aria-hidden="true"></canvas><span>01</span></div><div class="level-info"><span class="level-kicker">THE BEGINNING</span><h3>霓虹边境 <svg><use href="#i-arrow"/></svg></h3><p>越过城市边缘，热身你的二段跳。</p><span class="difficulty"><i></i><i></i><i class="dim"></i> 入门旅程</span></div></button>
+    <button class="level-card" data-stage="1" aria-pressed="false"><div class="level-thumb"><canvas id="thumb1" width="96" height="48" aria-hidden="true"></canvas><span>02</span></div><div class="level-info"><span class="level-kicker">KEEP MOVING</span><h3>落日工厂 <svg><use href="#i-arrow"/></svg></h3><p>断层与守卫之间，找到你的节奏。</p><span class="difficulty"><i></i><i></i><i></i> 进阶挑战</span></div></button>
+    <button class="level-card" data-stage="2" aria-pressed="false"><div class="level-thumb"><canvas id="thumb2" width="96" height="48" aria-hidden="true"></canvas><span>03</span></div><div class="level-info"><span class="level-kicker">ONE LAST SIGNAL</span><h3>最后的信号 <svg><use href="#i-arrow"/></svg></h3><p>击败终点守卫，让城市重新亮起来。</p><span class="difficulty"><svg><use href="#i-bolt"/></svg> 首领关卡</span></div></button>
+  </div></section>
+  <footer><span><span class="footer-dot"></span> BUILT ON LED STUDIO <span class="footer-separator">/</span> 独立游戏实验</span><span>MADE OF PIXELS. POWERED BY PLAY.</span></footer>
+</main>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<noscript><div class="boot-error">请开启 JavaScript 后游玩。</div></noscript>
+<script>if(location.protocol==='file:')document.body.insertAdjacentHTML('beforeend','<div class="boot-error">请双击 start.bat 启动，然后打开 http://127.0.0.1:8142</div>');</script>
+<script type="module" src="./js/app.js"></script>
+</body>
+</html>

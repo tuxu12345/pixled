@@ -1,6 +1,6 @@
 # pixel-led
 
-像素点阵相关的三个独立 Web Demo。共同点是**都在浏览器里模拟"离散像素 + 有限色板"的硬件**，
+像素点阵相关的四个独立 Web Demo。共同点是**都在浏览器里模拟"离散像素 + 有限色板"的硬件**，
 不用真买屏就能看清不同技术方案的差别。
 
 每个 Demo 都是**零依赖**的纯 ES 模块 + 一个几十行的静态服务器，克隆下来直接 `node server.mjs` 就能跑，
@@ -8,21 +8,22 @@
 
 ---
 
-## 三个 Demo
+## 四个 Demo
 
 | Demo | 目录 | 端口 | 模拟什么 |
 |---|---|---|---|
 | **LED Studio** | `led-studio/` | 8139 | HUB75 点阵屏：扫描驱动、色深限制、上屏效果 |
 | **拼豆工坊** | `pixel-bead-studio/` | 8137 | 拼豆图案：字符画 / 几何生成 / AI 生成 / 导出 |
 | **Mini-LED Studio** | `miniled-studio/` | 8140 | Mini-LED 背光分区调光：分区提取、光晕、对比度 |
+| **LED Arcade** | `led-arcade/` | 8142 | 在 LED 点阵屏里玩的横版街机游戏（三关 + 首领） |
 
-### 三者是什么关系（容易混）
+### 四者是什么关系（容易混）
 
 ```
-LED Studio（点阵屏）        Mini-LED Studio（背光）
-像素 = 灯珠本身              像素 = LCD 透光率 × 背光
-间距 3~5mm，灯珠肉眼可见      间距 0.1~0.5mm，看不见
-看的是"图案怎么显示"          看的是"分区怎么给光"
+LED Studio（点阵屏）       Mini-LED Studio（背光）      LED Arcade（游戏）
+像素 = 灯珠本身             像素 = LCD 透光率 × 背光      在点阵屏里跑游戏
+间距 3~5mm，灯珠肉眼可见     间距 0.1~0.5mm，看不见        每一帧都用灯珠画出来
+看的是"图案怎么显示"         看的是"分区怎么给光"          看的是"能玩成什么样"
         ↑
    拼豆工坊（拼豆）
    像素 = 一颗豆子，间距 5mm
@@ -31,6 +32,8 @@ LED Studio（点阵屏）        Mini-LED Studio（背光）
 
 **拼豆和点阵屏是同一件事的两面**：都是离散格子 + 有限色板，图案格式通用。
 `led-studio` 能直接读取 `pixel-bead-studio` 的图案库（`js/art.js` 的 `LIBRARY`）。
+`led-arcade` 用的是同一套点阵渲染思路（`js/led/buffer.js` 复制自 LED Studio），
+但**运行时完全独立**，不依赖其它三个目录。
 
 ---
 
@@ -38,24 +41,25 @@ LED Studio（点阵屏）        Mini-LED Studio（背光）
 
 ### 方式一：部署到 Vercel（推荐，零配置）
 
-**直接 import 本仓库即可，不需要任何构建配置。** 三个 demo 会自动出现在各自的路径下：
+**直接 import 本仓库即可，不需要任何构建配置。** 四个 demo 会自动出现在各自的路径下：
 
 ```
-https://<你的项目>.vercel.app/                    ← 落地页（三个 demo 的总入口）
+https://<你的项目>.vercel.app/                    ← 落地页（四个 demo 的总入口）
 https://<你的项目>.vercel.app/led-studio/         ← LED Studio
 https://<你的项目>.vercel.app/pixel-bead-studio/  ← 拼豆工坊
 https://<你的项目>.vercel.app/miniled-studio/     ← Mini-LED Studio
+https://<你的项目>.vercel.app/led-arcade/         ← LED Arcade 游戏
 ```
 
-为什么能直接跑：三个 demo 是**纯静态 ES 模块**，没有任何服务端逻辑
-（`server.mjs` 只是本地开发用的静态文件服务器，Vercel 上用不到）。
+为什么能直接跑：四个 demo 都是**纯静态 ES 模块**，没有任何服务端逻辑
+（各自的 `server.mjs` 只是本地开发用的静态文件服务器，Vercel 上用不到）。
 所有资源引用都是相对路径，`led-studio` 读取隔壁拼豆图案库用的也是相对路径
 `../../pixel-bead-studio/js/art.js`，在 Vercel 上解析成 `/pixel-bead-studio/js/art.js`，依然成立。
 
 `vercel.json` 只做了两件事：`cleanUrls: false`（保证 `/led-studio/` 这种路径能正常解析到
 `index.html`），以及显式声明 `.js` / `.css` / `.json` 的 Content-Type。
 
-> ⚠️ 根目录的 `index.html` 是**必须的**（Vercel 静态项目的规定）。它是三个 demo 的落地页。
+> ⚠️ 根目录的 `index.html` 是**必须的**（Vercel 静态项目的规定）。它是四个 demo 的落地页。
 
 ### 方式二：本地
 
@@ -70,7 +74,7 @@ cd miniled-studio      && node server.mjs 8140
 
 > ⚠️ **必须用本地服务打开，不能双击 index.html。**
 > 浏览器禁止 `file://` 下加载 ES 模块，双击会导致脚本完全不跑、按钮全部没反应。
-> 三个页面都内置了兜底提示面板，检测到 `file://` 会明确告诉你怎么办。
+> 四个页面都内置了兜底提示面板，检测到 `file://` 会明确告诉你怎么办。
 
 跑 `led-studio` 时建议同时跑 `pixel-bead-studio` —— 前者的"拼豆图案"上屏功能会去读后者的图案库
 （读不到会退回自带图案，不会报错）。
@@ -127,7 +131,7 @@ cd miniled-studio      && node server.mjs 8140
 
 ```
 pixel-led/
-├─ index.html             落地页（三个 demo 的总入口，Vercel 需要根目录有 index.html）
+├─ index.html             落地页（四个 demo 的总入口，Vercel 需要根目录有 index.html）
 ├─ vercel.json            Vercel 配置（cleanUrls + Content-Type）
 ├─ led-studio/            HUB75 点阵屏模拟器
 │  ├─ index.html
@@ -155,14 +159,20 @@ pixel-led/
 │     ├─ export.js        导出（JSON/PNG/头文件/主题包）
 │     ├─ themepack.js     Clockwise 主题包
 │     └─ ai.js            DeepSeek 接入
-└─ miniled-studio/        Mini-LED 背光分区调光
+├─ miniled-studio/        Mini-LED 背光分区调光
    ├─ index.html
    ├─ server.mjs
+└─ led-arcade/            LED 点阵街机游戏
+   ├─ index.html
+   ├─ start.bat          Windows 双击启动
+   ├─ server.mjs         静态服务（自包含，根 = 自己）
+   ├─ docs/              设计 / 计划 / 验证记录
+   ├─ tests/game.test.mjs  12 项游戏逻辑测试
    └─ js/
-      ├─ pipeline.js      分区提取、背光扩散、成像、对比度
-      ├─ patterns.js      7 个测试图案（程序生成）
-      ├─ render.js        渲染 + 指标（MAE/光晕/格子感/功耗）
-      └─ app.js           UI 控制器
+      ├─ game.js         固定步长模拟、关卡、自动演示（不依赖 DOM）
+      ├─ render.js       原生像素场景绘制
+      ├─ app.js          输入、主循环、设置、导出
+      └─ led/            buffer.js（点阵缓冲）+ display.js（灯珠显示）
 ```
 
 ---
@@ -172,7 +182,7 @@ pixel-led/
 这些都是实际调试中踩出来的，写在代码注释里了，这里汇总一下：
 
 ### 架构 / 环境
-1. **`file://` 打不开 ES 模块** —— 必须走本地服务。三个页面都加了兜底面板，并区分
+1. **`file://` 打不开 ES 模块** —— 必须走本地服务。四个页面都加了兜底面板，并区分
    "真的 file:// 打开"和"服务开着但脚本报错"两种情况，给不同的提示（否则会把人误导到错误方向）。
 2. **不能对工作区根 `git init`** —— 里面有别的项目和几百 MB 的压缩包。
 
