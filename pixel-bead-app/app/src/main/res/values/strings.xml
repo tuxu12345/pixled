@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">拼豆工坊</string>
+    <string name="pick_no_app">这台车机上没有找到文件选择器</string>
+</resources>

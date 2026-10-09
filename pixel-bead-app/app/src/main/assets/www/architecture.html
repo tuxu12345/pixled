@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI 能力技术架构方案 · 拼豆工坊（车外像素屏）</title>
+<style>
+  :root {
+    --bg: #070a0f; --panel: #101821; --panel2: #0c131a; --line: #1e2a36;
+    --text: #e8f1f8; --muted: #8b9bad; --cyan: #00d8ff; --cyan2: #0a8fb0;
+    --ok: #35e08a; --warn: #ffb020; --vio: #9d8bff; --pink: #ff7ac6;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background:
+      radial-gradient(1200px 700px at 10% -10%, #0c2331 0%, transparent 58%),
+      radial-gradient(900px 500px at 100% 0%, #141a33 0%, transparent 55%), var(--bg);
+    color: var(--text); font-family: var(--sans); padding: 26px 30px 60px;
+  }
+  header.doc { max-width: 1760px; margin: 0 auto 18px; display: flex; align-items: flex-end; gap: 18px; flex-wrap: wrap; }
+  h1 { font-size: 25px; margin: 0; letter-spacing: .4px; }
+  h1 b { color: var(--cyan); }
+  .sub { color: var(--muted); font-size: 13px; margin-top: 6px; }
+  .badges { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+  .badge { font-size: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--muted); padding: 5px 11px; border-radius: 999px; }
+  .badge b { color: var(--cyan); }
+  .badge.ok b { color: var(--ok); }
+  .badge.warn b { color: var(--warn); }
+
+  .board {
+    position: relative; width: 100%; max-width: 1760px; margin: 0 auto;
+    aspect-ratio: 1760 / 1180; min-height: 900px;
+    background: linear-gradient(180deg, rgba(16,24,33,.72), rgba(8,12,17,.85));
+    border: 1px solid var(--line); border-radius: 20px;
+    box-shadow: 0 30px 70px rgba(0,0,0,.55); overflow: hidden;
+  }
+  .svg-lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .lane {
+    position: absolute; left: 1.1%; width: 97.8%; border-radius: 14px;
+    border: 1px dashed rgba(255,255,255,.07); background: rgba(255,255,255,.012);
+  }
+  .lane-label {
+    position: absolute; left: 10px; top: 7px; font-size: 11px; letter-spacing: 1.5px;
+    color: rgba(255,255,255,.30); font-weight: 700; text-transform: uppercase;
+  }
+  .box {
+    position: absolute; border-radius: 12px; padding: 8px 10px;
+    background: linear-gradient(180deg, #141d27, #0d141b);
+    border: 1px solid var(--line); display: flex; flex-direction: column; gap: 3px;
+    box-shadow: 0 6px 16px rgba(0,0,0,.35);
+  }
+  .box .t { font-size: 12.5px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+  .box .d { font-size: 10.5px; color: var(--muted); line-height: 1.42; }
+  .box .m { font-family: var(--mono); font-size: 9.5px; color: var(--cyan2); }
+  .box.cyan { border-color: #1d5c72; box-shadow: 0 0 0 1px rgba(0,216,255,.10), 0 6px 18px rgba(0,0,0,.4); }
+  .box.cyan .t { color: var(--cyan); }
+  .box.ok { border-color: #1c5b3f; }
+  .box.ok .t { color: var(--ok); }
+  .box.vio { border-color: #3d3570; }
+  .box.vio .t { color: var(--vio); }
+  .box.warn { border-color: #5a4310; }
+  .box.warn .t { color: var(--warn); }
+  .box.pink { border-color: #5c2a4a; }
+  .box.pink .t { color: var(--pink); }
+  .box.hw { background: linear-gradient(180deg, #16202b, #0b1218); }
+  .box.hw .t { letter-spacing: .3px; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
+  .pill {
+    position: absolute; font-family: var(--mono); font-size: 9.5px; color: #0a1520;
+    background: var(--cyan); padding: 2px 7px; border-radius: 999px; font-weight: 700;
+    box-shadow: 0 0 12px rgba(0,216,255,.35);
+  }
+  .pill.ghost { background: #182430; color: var(--muted); box-shadow: none; border: 1px solid var(--line); }
+  .note {
+    position: absolute; font-size: 10px; color: var(--muted); font-family: var(--mono);
+    background: rgba(8,12,17,.9); border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px;
+    line-height: 1.45; max-width: 300px;
+  }
+  .note b { color: var(--warn); }
+  .note code { color: var(--cyan); }
+
+  .legend { max-width: 1760px; margin: 16px auto 0; display: flex; gap: 18px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 7px; }
+  .k { width: 22px; height: 3px; border-radius: 2px; background: var(--cyan); }
+  .k.dash { background: repeating-linear-gradient(90deg, var(--warn) 0 5px, transparent 5px 9px); }
+  .k.vio { background: var(--vio); }
+
+  section.cards { max-width: 1760px; margin: 26px auto 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 14px; }
+  .card { background: linear-gradient(180deg, var(--panel), var(--panel2)); border: 1px solid var(--line); border-radius: 14px; padding: 15px 17px; }
+  .card h3 { margin: 0 0 9px; font-size: 14px; color: var(--cyan); letter-spacing: .3px; }
+  .card h3 span { color: var(--muted); font-weight: 400; font-size: 11.5px; margin-left: 7px; }
+  .card ul { margin: 0; padding-left: 18px; }
+  .card li { font-size: 12.5px; color: #cfdce7; line-height: 1.75; }
+  .card li b { color: var(--text); }
+  .card code { font-family: var(--mono); font-size: 11px; color: var(--cyan); background: #0a1017; padding: 1px 5px; border-radius: 5px; }
+  .kv { font-family: var(--mono); font-size: 11.5px; color: var(--muted); display: grid; grid-template-columns: auto 1fr; gap: 5px 12px; }
+  .kv b { color: var(--ok); font-weight: 600; }
+  .pipeline { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  .step { font-size: 11px; background: #0a1017; border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; color: #cfdce7; }
+  .step.hot { border-color: #1d5c72; color: var(--cyan); }
+  .arrow { color: var(--muted); font-size: 11px; }
+  footer.doc { max-width: 1760px; margin: 30px auto 0; color: var(--muted); font-size: 11.5px; line-height: 1.8; border-top: 1px solid var(--line); padding-top: 14px; }
+  @media print { body { background: #fff; } }
+</style>
+</head>
+<body>
+<header class="doc">
+  <div>
+    <h1>AI 能力技术架构方案 · <b>拼豆工坊</b></h1>
+    <div class="sub">自然语言 / 图片 → 像素点阵 → HUB75 车外屏 · 用于「手势开门」的小游戏与用户共创图案</div>
+  </div>
+  <div class="badges">
+    <span class="badge">模型 <b>deepseek-v4-flash</b></span>
+    <span class="badge ok">分镜路径 <b>~1.1k token / 48×48 可辨识</b></span>
+    <span class="badge">屏幕 <b>96×48 · HUB75</b></span>
+    <span class="badge warn">Key 必须走服务端</span>
+  </div>
+</header>
+
+<!-- ============================ 架构图 ============================ -->
+<div class="board" id="board">
+  <svg class="svg-lines" id="lines" viewBox="0 0 1760 1180" preserveAspectRatio="none"></svg>
+
+  <!-- 泳道 -->
+  <div class="lane" style="top:2.2%;  height:15.6%"><span class="lane-label">① 输入层 · INPUT</span></div>
+  <div class="lane" style="top:19.4%; height:18.5%"><span class="lane-label">② 应用层 · APP (车机 HMI / 手机 Web)</span></div>
+  <div class="lane" style="top:39.5%; height:24.6%"><span class="lane-label">③ AI 能力层 · GENERATION &amp; GUARDRAIL</span></div>
+  <div class="lane" style="top:65.7%; height:15.6%"><span class="lane-label">④ 渲染 / 导出层 · EXPORT</span></div>
+  <div class="lane" style="top:82.9%; height:15.6%"><span class="lane-label">⑤ 分发 · 硬件层 · DELIVERY</span></div>
+
+  <!-- ① 输入 -->
+  <div class="box cyan" style="left:2%; top:5.4%; width:19%; height:10.2%">
+    <div class="t"><i class="dot"></i>语音 / 文字描述</div>
+    <div class="d">「一只戴红围巾的柴犬」<br>车机语音助手 · 输入框 · 一句话生成</div>
+    <div class="m">text</div>
+  </div>
+  <div class="box cyan" style="left:22.4%; top:5.4%; width:19%; height:10.2%">
+    <div class="t"><i class="dot"></i>拍照 / 搜图</div>
+    <div class="d">宠物照片、喜欢的表情包、车友图<br>多模态图 → 点阵</div>
+    <div class="m">image · multimodal</div>
+  </div>
+  <div class="box" style="left:42.8%; top:5.4%; width:17.5%; height:10.2%">
+    <div class="t"><i class="dot"></i>屏上像素格填色</div>
+    <div class="d">不让用户画画，直接拼豆填色<br>8×8 / 16×16 / 32×32 画板</div>
+    <div class="m">manual grid edit</div>
+  </div>
+  <div class="box" style="left:61.6%; top:5.4%; width:17.5%; height:10.2%">
+    <div class="t"><i class="dot"></i>内置图案库</div>
+    <div class="d">10+ 成品图案 · 标准豆 / 迷你豆 / 夜光豆<br>点一下直接上屏</div>
+    <div class="m">preset library</div>
+  </div>
+  <div class="box vio" style="left:80.4%; top:5.4%; width:17.5%; height:10.2%">
+    <div class="t"><i class="dot"></i>车身信号（预留）</div>
+    <div class="d">车速 / 转向 / 门锁 / 电量<br>驱动「到车才亮」的场景化动效</div>
+    <div class="m">CAN / SOA events</div>
+  </div>
+
+  <!-- ② 应用层 -->
+  <div class="box cyan" style="left:2%; top:22.6%; width:24.5%; height:12.6%">
+    <div class="t"><i class="dot"></i>拼豆工坊 HMI</div>
+    <div class="d">图案库 / 我的创作 / 像素编辑器 / 屏幕预览<br>三种入口：自己画 · AI 生图 · 我们提供基础图</div>
+    <div class="m">Demo: index.html + js/ui.js</div>
+  </div>
+  <div class="box" style="left:27.5%; top:22.6%; width:23%; height:12.6%">
+    <div class="t"><i class="dot"></i>手机 Web / 小程序</div>
+    <div class="d">用户在外面就能挑图案、AI 生成、保存到账号<br>上车后同步到车机（同一份 JSON）</div>
+    <div class="m">responsive web · same payload</div>
+  </div>
+  <div class="box" style="left:51.5%; top:22.6%; width:22.5%; height:12.6%">
+    <div class="t"><i class="dot"></i>图案仓库 / 账号</div>
+    <div class="d">我的创作 local-first，可上云<br>自定义图案 = 用户 UGC 资产（IP 运营）</div>
+    <div class="m">localStorage → 云端</div>
+  </div>
+  <div class="box warn" style="left:75%; top:22.6%; width:22.9%; height:12.6%">
+    <div class="t"><i class="dot"></i>AI 编排 / 任务队列</div>
+    <div class="d">生成中状态、超时降级、失败可重试<br>限流与配额（按车/按账号）</div>
+    <div class="m">orchestrator</div>
+  </div>
+
+  <!-- ③ AI 层 -->
+  <div class="box vio" style="left:2%; top:42.4%; width:19%; height:10.6%">
+    <div class="t"><i class="dot"></i>Prompt 工程</div>
+    <div class="d">把「描述 + 尺寸 + 色数 + 豆色卡 + 风格」<br>拼成固定模板，禁止自由发挥</div>
+    <div class="m">prompt template（版本化）</div>
+  </div>
+  <div class="box vio" style="left:22.4%; top:42.4%; width:19%; height:10.6%">
+    <div class="t"><i class="dot"></i>图 → 描述</div>
+    <div class="d">多模态先把照片读成结构化描述<br>再交给点阵生成，保主体轮廓</div>
+    <div class="m">multimodal understand</div>
+  </div>
+  <div class="box cyan" style="left:42.8%; top:42.4%; width:24.4%; height:10.6%">
+    <div class="t"><i class="dot"></i>DeepSeek 出「分镜」（主路径 · 默认）</div>
+    <div class="d">模型只输出「形状 + 配色 + 位置」，像素由本地渲染器铺<br><b>thinking:disabled</b> · response_format: json_object</div>
+    <div class="m">16 个形状 ≈ 700 token</div>
+  </div>
+  <div class="box ghost" style="left:68.6%; top:42.4%; width:29.3%; height:10.6%; border-color:#2a3542">
+    <div class="t" style="color:#cfdce7"><i class="dot" style="background:#8b9bad"></i>模型直出网格（小画布路径）</div>
+    <div class="d">一步吐「行字符串」点阵，20×20 这种小画布够用、像素级可控；48×48 会截断成糊图，故不作为大画布默认</div>
+    <div class="m">direct grid · 20×20 约 460 token</div>
+  </div>
+
+  <div class="box ok" style="left:2%; top:55.6%; width:47%; height:6.4%">
+    <div class="t"><i class="dot"></i>校验 &amp; 修复管线 <span class="m" style="color:var(--ok)">护栏 · 这是可用性的关键</span></div>
+    <div class="d">分镜规整（类型/坐标/配色兜底）→ 本地光栅化 → 描边 → 落色到真实豆色卡；直出路径另有尺寸对齐 / 索引越界 / 对称修复</div>
+  </div>
+  <div class="box ok" style="left:50.6%; top:55.6%; width:47.3%; height:6.4%">
+    <div class="t"><i class="dot"></i>可观测性</div>
+    <div class="d">每步耗时 / token 消耗 / 空返回率 / 自动修复命中率 全部落日志，异常可回放（Demo 的「AI 生成日志」页即此能力）</div>
+  </div>
+
+  <!-- ④ 导出 -->
+  <div class="box" style="left:2%; top:68.8%; width:15.6%; height:10.2%">
+    <div class="t"><i class="dot"></i>画布渲染</div>
+    <div class="d">Canvas / SVG 双通道<br>拼豆孔质感 + 网格 + 透明底</div>
+    <div class="m">render.js</div>
+  </div>
+  <div class="box" style="left:18.9%; top:68.8%; width:15.6%; height:10.2%">
+    <div class="t"><i class="dot"></i>图案 JSON</div>
+    <div class="d">车机 / 手机 / 云端同一份数据<br>行字符串可读、可 diff、可回滚</div>
+    <div class="m">pixel-bead-studio/v1</div>
+  </div>
+  <div class="box ok" style="left:35.8%; top:68.8%; width:17.4%; height:10.2%">
+    <div class="t"><i class="dot"></i>ESP32 C 数组</div>
+    <div class="d">palette565 + RLE 帧 + 解码函数<br>实测 96×48 帧 4608B → 522B（省 89%）</div>
+    <div class="m">bead_art.h</div>
+  </div>
+  <div class="box ok" style="left:54.5%; top:68.8%; width:17%; height:10.2%">
+    <div class="t"><i class="dot"></i>二进制帧 + 协议</div>
+    <div class="d">magic/ver/cmd/尺寸/调色板/RLE/CRC16<br>串口 · BLE · WiFi 同一份帧</div>
+    <div class="m">A5 5A | … | CRC16</div>
+  </div>
+  <div class="box" style="left:72.8%; top:68.8%; width:25.1%; height:10.2%">
+    <div class="t"><i class="dot"></i>动效序列</div>
+    <div class="d">换色循环 / 呼吸 / 扫描 / 波动 + 3×5 点阵字叠字<br>「到车 → 狗出现 → 打鸭子 → 门开」的时间轴脚本</div>
+    <div class="m">frame timeline</div>
+  </div>
+
+  <!-- ⑤ 硬件 -->
+  <div class="box hw cyan" style="left:2%; top:86%; width:22%; height:10.2%">
+    <div class="t"><i class="dot"></i>车机主机（Android / Linux）</div>
+    <div class="d">跑 HMI 与 AI 编排；USB / UART / BLE 下发帧<br>生产环境：Key 与调用只在这里</div>
+    <div class="m">USB-Serial · BLE · WiFi</div>
+  </div>
+  <div class="box hw ok" style="left:25.4%; top:86%; width:24.6%; height:10.2%">
+    <div class="t"><i class="dot"></i>ESP32-S3 RGB Matrix 驱动板</div>
+    <div class="d">双麦克风 + AI 语音交互（唤醒词 / 声控换图）<br>收帧 → 解 RLE → 双缓冲刷屏 · 亮度自适应</div>
+    <div class="m">ESP-IDF · HUB75 DMA</div>
+  </div>
+  <div class="box hw pink" style="left:51.4%; top:86%; width:21.6%; height:10.2%">
+    <div class="t"><i class="dot"></i>HUB75 点阵屏 96×48</div>
+    <div class="d">约 20×10cm · 全彩 · 亮度可调 · 可级联<br>后窗直贴 / 侧窗待方案（不影响开关窗）</div>
+    <div class="m">P3/P4 · 1/16 scan</div>
+  </div>
+  <div class="box hw vio" style="left:74.4%; top:86%; width:23.5%; height:10.2%">
+    <div class="t"><i class="dot"></i>手势感知（复用现有）</div>
+    <div class="d">走进车辆识别 · 比枪手势 = 射击输入<br>游戏结果回写车控：开门 / 灯光 / 音效</div>
+    <div class="m">camera / radar → events</div>
+  </div>
+
+  <!-- 连线 -->
+  <g id="conn"></g>
+
+  <!-- 标注 -->
+  <div class="note" style="left:69%; top:33.2%; width:28%">
+    <b>实测坑（已解决）</b>：推理模型会把 <code>max_tokens</code> 全烧在思考链上，<code>content</code> 返回空串。
+    必须 <code>thinking:{type:"disabled"}</code> —— 关掉后 20×20 网格 <code>1.8s</code> 返回。
+  </div>
+  <div class="note" style="left:2%; top:63.1%; width:46.6%">
+    <b>实测对比（同一句描述）</b>：直出 20×20 尚可；直出 48×48 要 8000 token 还常截断成糊图。
+    改「分镜 + 本地渲染」后，16 个形状 ≈ <code>700 token</code>，48×48 也能稳定出可辨识的图案 —— 所以它是默认路径。
+  </div>
+  <div class="note" style="left:79.5%; top:63.1%; width:18.4%">
+    每帧带 CRC16，<br>丢包可整帧重发
+  </div>
+</div>
+
+<div class="legend">
+  <span><i class="k"></i> 主链路（同步返回）</span>
+  <span><i class="k dash"></i> 降级 / 兜底路径</span>
+  <span><i class="k vio"></i> 图片与预留输入</span>
+  <span>数据契约：模型输出行字符串 → 应用层规整 → 固件侧索引帧</span>
+</div>
+
+<!-- ============================ 说明卡片 ============================ -->
+<section class="cards">
+  <div class="card">
+    <h3>端到端链路 <span>点一下「AI 生成」到底发生了什么</span></h3>
+    <div class="pipeline">
+      <span class="step">用户描述</span><span class="arrow">→</span>
+      <span class="step hot">拼模板</span><span class="arrow">→</span>
+      <span class="step hot">DeepSeek 出分镜</span><span class="arrow">→</span>
+      <span class="step">抠 JSON</span><span class="arrow">→</span>
+      <span class="step hot">规整形状/配色</span><span class="arrow">→</span>
+      <span class="step hot">本地光栅化</span><span class="arrow">→</span>
+      <span class="step">描边 + 落色卡</span><span class="arrow">→</span>
+      <span class="step ok">打包帧</span><span class="arrow">→</span>
+      <span class="step ok">ESP32 亮屏</span>
+    </div>
+    <div class="kv">
+      <span>模型</span><b>deepseek-v4-flash（备用 deepseek-v4-pro）</b>
+      <span>主路径</span><b>语义分镜 → 本地渲染（默认）</b>
+      <span>备用路径</span><b>模型直出网格（小画布 / 像素级可控）</b>
+      <span>关键参数</span><b>thinking:disabled · response_format=json_object</b>
+      <span>分镜输出</span><b>{"palette":[…],"shapes":[{"type","color","cx","cy","w","h","mirror"}]}</b>
+      <span>直出输出</span><b>{"title","cols","rows","palette":[hex],"grid":[行字符串]}</b>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>两条生成路径的实测对比 <span>为什么默认走分镜</span></h3>
+    <ul>
+      <li><b>直出 20×20</b>：约 460 token，出图能认出主体；细节（五官）靠模型自由发挥，偶尔崩</li>
+      <li><b>直出 48×48</b>：要 8000 token 预算，仍会截断成空串/糊图 —— <b>不可用于大画布</b></li>
+      <li><b>分镜 20/32/48×48</b>：约 1000~1400 token 全包，48×48 稳定出可辨识图案</li>
+      <li><b>为什么分镜更稳</b>：模型只需要决定「16 个形状」，不用逐格生成 2304 个像素；</li>
+      <li><b>为什么分镜更好看</b>：边缘由几何算法生成，天然干净、左右严格对称、描边一致</li>
+      <li><b>代价</b>：模型无法表达像素级细节，五官必须用「眼睛=深色椭圆+高光椭圆」这类形状显式声明</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>护栏设计 <span>AI 输出不可信，所以要有这 6 道</span></h3>
+    <ul>
+      <li><b>抠 JSON</b>：剥掉 markdown、前后废话、尾逗号</li>
+      <li><b>尺寸对齐</b>：行列不足自动居中补齐，超出裁剪</li>
+      <li><b>索引兜底</b>：越界 / 非法字符一律当透明，不崩</li>
+      <li><b>调色板兜底</b>：模型没给色就套内置豆色卡</li>
+      <li><b>对称 / 描边修复</b>：拼豆风的关键视觉自动补</li>
+      <li><b>落色</b>：颜色吸附到真实可购买豆色，避免"生成的画拼不出来"</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>数据契约 <span>三方对齐的唯一真相</span></h3>
+    <ul>
+      <li><b>模型侧（分镜）</b>：<code>cx,cy,w,h</code> 一律 0~1 归一化 + <code>mirror</code> 镜像标记 —— 消除"像素/百分比/角点"歧义</li>
+      <li><b>模型侧（直出）</b>：<code>grid</code> 用行字符串 + 单字符索引（0-9a-z，'.' 为透明），比嵌套数组省 3~5 倍 token</li>
+      <li><b>应用侧</b>：规整成 <code>{cols,rows,palette,Int8Array}</code>，一份数据同时驱动 UI 预览与导出</li>
+      <li><b>固件侧</b>：<code>A5 5A | ver | cmd | cols | rows | colors | flags | RGB565调色板 | RLE | CRC16</code></li>
+      <li><b>压缩</b>：索引帧 + RLE，实测 96×48 从 4608B 降到 522~700B（省 85~89%）</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>工程化要求 <span>上量产必须补的</span></h3>
+    <ul>
+      <li><b>密钥安全</b>：Key 只放服务端，客户端走自家 <code>/api/ai/pixel</code> 代理（Demo 里的小圆点：纯前端直连只适合演示）</li>
+      <li><b>内容安全</b>：生成内容过一遍审核（车外屏是公共空间，不能出现违规图案）</li>
+      <li><b>成本与限流</b>：按账号配额，失败重试有上限；常用图案缓存复用</li>
+      <li><b>弱网降级</b>：请求超时 → 内置图案库兜底，绝不让用户对着黑屏等</li>
+      <li><b>上车时序</b>：帧下发与手势识别事件共用一条时间轴，避免"门开了图案还没亮"</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>分期落地 <span>从 Demo 到量产</span></h3>
+    <ul>
+      <li><b>P0 演示（已可跑）</b>：文生点阵 + 像素编辑器 + 96×48 预览 + C 数组导出 · 微雪屏到货即上板</li>
+      <li><b>P1 硬件联调</b>：ESP32-S3 收帧刷屏、语音唤醒换图、亮度自适应、后窗固定方案</li>
+      <li><b>P2 场景闭环</b>：打鸭子小游戏时间轴 + 手势事件打通 + 门开联动</li>
+      <li><b>P3 共创与量产</b>：账号 + 手机端生成 + 内容审核 + 侧窗可量产结构方案</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>可直接拿去演示的产物</h3>
+    <ul>
+      <li><code>pixel-bead-studio/index.html</code> —— 可交互 Demo（文/图 → 点阵 → 导出）</li>
+      <li><code>js/spec.js</code> —— 分镜 → 本地光栅化（默认路径，形状/坐标/配色全兜底）</li>
+      <li><code>js/ai.js</code> —— 两条生成路径 + 提示词 + 调用参数（已踩平 reasoning 空返回的坑）</li>
+      <li><code>js/grid.js</code> —— 校验/修复管线（32 项自测全绿）</li>
+      <li><code>js/export.js</code> —— C 数组 / 二进制帧 / 3×5 字库 / 动效帧</li>
+      <li><code>architecture.html</code> —— 本图，可直接投屏讲</li>
+    </ul>
+  </div>
+</section>
+
+<footer class="doc">
+  图中关键参数均为实测：CORS 预检通过（<code>access-control-allow-origin</code> 正常回显），浏览器可直连；
+  <code>deepseek-v4-flash</code> 关闭思考链后 20×20 直出约 1.8s / 约 460 token，语义分镜路径约 1000~1400 token 全包且 48×48 稳定出图；
+  96×48 RLE 帧 522~700 字节；导出 C 数组可直接编译。本地自测 32 项全绿。
+</footer>
+
+<script>
+/* 用 JS 画连接线：按百分比定位，跟着盒子走 */
+const board = document.getElementById('board');
+const svg = document.getElementById('lines');
+const NS = 'http://www.w3.org/2000/svg';
+
+const CONNS = [
+  // 输入 -> 应用
+  ['2.5,15.6', '3.5,22.6', 'main'],
+  ['23,15.6', '23,22.6', 'main'],
+  ['43.5,15.6', '14,22.6', 'main'],
+  ['62,15.6', '20,22.6', 'main'],
+  ['81,15.6', '70,22.6', 'vio'],
+  // 应用 -> AI
+  ['14,35.2', '11.5,42.4', 'main'],
+  ['30,35.2', '60,42.4', 'dash'],
+  ['12,35.2', '60,42.4', 'main'],
+  ['39,35.2', '55,42.4', 'main'],
+  ['86,35.2', '83,42.4', 'dash'],
+  // AI -> 护栏
+  ['12,53', '25,55.6', 'main'],
+  ['55,53', '30,55.6', 'main'],
+  ['83,53', '74,55.6', 'dash'],
+  // 护栏 -> 导出
+  ['25,62', '25,68.8', 'main'],
+  ['74,62', '85,68.8', 'main'],
+  // 导出 -> 硬件
+  ['24,79', '13,86', 'main'],
+  ['44,79', '38,86', 'main'],
+  ['63,79', '38,86', 'main'],
+  ['85,79', '38,86', 'dash'],
+  // 硬件互联
+  ['24,91', '25.4,91', 'main'],
+  ['50,91', '51.4,91', 'main'],
+  ['86,91', '74.4,91', 'vio'],
+];
+
+function pt(p) {
+  const [x, y] = p.split(',').map(Number);
+  return { x: (x / 100) * 1760, y: (y / 100) * 1180 };
+}
+
+const STYLE = {
+  main: { stroke: '#00d8ff', width: 1.6, dash: '', opacity: .55 },
+  dash: { stroke: '#ffb020', width: 1.4, dash: '6 6', opacity: .5 },
+  vio: { stroke: '#9d8bff', width: 1.4, dash: '', opacity: .45 },
+};
+
+CONNS.forEach(([a, b, kind]) => {
+  const p1 = pt(a), p2 = pt(b);
+  const s = STYLE[kind];
+  const path = document.createElementNS(NS, 'path');
+  const midY = (p1.y + p2.y) / 2;
+  const d = Math.abs(p1.x - p2.x) < 4
+    ? `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`
+    : `M ${p1.x} ${p1.y} C ${p1.x} ${midY}, ${p2.x} ${midY}, ${p2.x} ${p2.y}`;
+  path.setAttribute('d', d);
+  path.setAttribute('fill', 'none');
+  path.setAttribute('stroke', s.stroke);
+  path.setAttribute('stroke-width', s.width);
+  path.setAttribute('stroke-opacity', s.opacity);
+  if (s.dash) path.setAttribute('stroke-dasharray', s.dash);
+  svg.appendChild(path);
+
+  // 箭头
+  const ang = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+  const head = document.createElementNS(NS, 'path');
+  const len = 7, spread = 0.42;
+  const hx = p2.x, hy = p2.y;
+  head.setAttribute('d', `M ${hx} ${hy} L ${hx - len * Math.cos(ang - spread)} ${hy - len * Math.sin(ang - spread)} M ${hx} ${hy} L ${hx - len * Math.cos(ang + spread)} ${hy - len * Math.sin(ang + spread)}`);
+  head.setAttribute('stroke', s.stroke);
+  head.setAttribute('stroke-width', s.width + .4);
+  head.setAttribute('stroke-opacity', .85);
+  head.setAttribute('fill', 'none');
+  svg.appendChild(head);
+});
+
+// 关键节点上的小圆点，强调"这里是同步返回"
+[['42.8,42.4'], ['8,55.6'], ['44.5,74'], ['37,91']].forEach(([p]) => {
+  const { x, y } = pt(p);
+  const c = document.createElementNS(NS, 'circle');
+  c.setAttribute('cx', x); c.setAttribute('cy', y); c.setAttribute('r', 3.2);
+  c.setAttribute('fill', '#00d8ff'); c.setAttribute('opacity', '.9');
+  svg.appendChild(c);
+});
+</script>
+</body>
+</html>

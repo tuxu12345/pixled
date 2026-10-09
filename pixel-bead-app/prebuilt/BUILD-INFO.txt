@@ -1,0 +1,21 @@
+﻿拼豆工坊 · 车机壳 —— 预编译 APK（方便直接丢给硬件同事，不用装 Android SDK）
+
+文件      pixelbead-debug.apk
+包名      com.byd.pixelbead
+应用名    拼豆工坊
+版本      1.0 (versionCode 1)
+SDK       minSdk 29 / targetSdk 34 / compileSdk 34
+签名      Android Debug（v2 方案，未用 v1）
+体积      1272153 字节
+SHA-256   11242578334EC73557B86737BB775A08720C19BBBEFC017D30BD435AA3448241
+构建命令  ./gradlew assembleDebug
+构建时间  2026-10-09 23:30:01
+
+安装
+  adb install -r pixelbead-debug.apk
+  # 车机上如果禁止 adb 安装，把 apk 拷到 U 盘用文件管理器点开也行
+
+说明
+  · 这是 debug 包：开了 WebView 远程调试，方便 adb forward + chrome://inspect 排查网页。
+  · 正式交付请走 ./gradlew assembleRelease（release 包不开调试口）。
+  · 这个文件是快照，源码改了要重新构建再覆盖，别当成唯一来源。

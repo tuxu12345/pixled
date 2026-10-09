@@ -1,0 +1,20 @@
+# gradlew 是 bash 脚本：一旦被转成 CRLF，macOS/Linux 上 ./gradlew 会直接
+# 报 "bad interpreter: No such file or directory"。这条必须留着。
+gradlew   text eol=lf
+*.sh      text eol=lf
+
+# Windows 侧脚本保持 CRLF
+*.bat     text eol=crlf
+*.ps1     text eol=crlf
+
+# 二进制别做任何行尾/编码转换
+*.apk     binary
+*.jar     binary
+*.png     binary
+*.webp    binary
+*.keystore binary
+
+# app/src/main/assets/www 是 pixel-bead-studio 的构建期同步副本（见 app/build.gradle.kts
+# 的 syncWebAssets）。在 GitHub 上标记为生成物：不算语言统计、diff 默认折叠。
+pixel-bead-app/app/src/main/assets/www/** linguist-generated=true
+pixel-bead-app/app/src/main/assets/www/** linguist-vendored=true

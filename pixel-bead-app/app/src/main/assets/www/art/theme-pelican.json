@@ -1,0 +1,29 @@
+{
+  "name": "pelican-bike",
+  "version": 1,
+  "author": "Pixel Bead Studio",
+  "bgColor": 0,
+  "delay": 250,
+  "setup": [
+    {
+      "type": "image",
+      "x": 0,
+      "y": 0,
+      "image": "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAMAAACdt4HsAAAAJFBMVEXooDz/88QaGhr/////owD/1AA+KiCwFyKbm5vy8vJKSkoAAAAezJUnAAAADHRSTlP//////////////wAS387OAAABq0lEQVR42u2X4W7DIAyEjUdrmN//fSfABAOGpk21SVPvV1ruvgAxbgp8UfABfAAfwNMAuAQABrDcZwEg+jsAO+fchT1wolcBJY1oEJ4AIH6h9/4FgKsTwATIsgGwWbwswWvNAOMpuV5TfgQcDGerBm8iC5AQyXsXdYBbL7YBEi8fBsQZQMnDIU1ok5f8EgBad12Hfd4AOAMgEp+KLwFuXgIz3x8epgZw0yaS6FEpV8DwGJmZzvY5q4D4VwFs588DMDWOKX4KgE0tTqT2vwzaAJUWd9d8iImUZQakb0MWIiGPAGJGao5GgJYPVelOA4Gygw5LI4DOxyyikJehACUfiIpDE2DKRyrjCeC7fAgC0IQKUHkq43xMgag6qCMMgFgBeTwBqEyBlKMCYg8Y85WA6LHLG4QBgKQAiNHLfRqAcAdIJXAMY7oUQnMQ4h7QlI0+4voW1hLUBNMljoDOYW5i7JaQt3HpsB9jG80EzxuHWUiqTPIPOu8cZil3pc5CWDqMw6RG1elfOMzjHIams3WYDcXKrxxmS0P7XQm3LY3Nlmkz3v26/31F/+Evzw+ROopXeWArBgAAAABJRU5ErkJggg==",
+      "id": "gh5cam",
+      "comment": "pelican on a bike"
+    },
+    {
+      "type": "datetime",
+      "x": 20,
+      "y": 62,
+      "content": "H:i",
+      "font": "picopixel",
+      "fgColor": 65535,
+      "bgColor": 0,
+      "id": "eg677a"
+    }
+  ],
+  "sprites": [],
+  "loop": []
+}

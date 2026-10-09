@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- WebView 背后的底色，和网页 css 变量 bg 完全一致，避免启动/加载瞬间闪白 -->
+    <color name="pbs_bg">#FF0B1017</color>
+    <color name="ic_launcher_background">#FF0B1017</color>
+</resources>

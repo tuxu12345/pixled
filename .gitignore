@@ -22,3 +22,8 @@ Desktop.ini
 
 # 涓婁紶鐨勭礌鏉愶紙浣撶Н澶э紝涓嶅叆搴擄級
 *.crdownload
+
+# 提取脚本/合并脚本的自检临时文件
+.art-check-*.mjs
+.merge-check.mjs
+
