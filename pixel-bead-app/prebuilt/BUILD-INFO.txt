@@ -1,21 +1,37 @@
-﻿拼豆工坊 · 车机壳 —— 预编译 APK（方便直接丢给硬件同事，不用装 Android SDK）
+拼豆工坊 · 车机壳 —— 预编译 APK（方便直接丢给硬件同事，不用装 Android SDK）
 
 文件      pixelbead-debug.apk
 包名      com.byd.pixelbead
 应用名    拼豆工坊
 版本      1.0 (versionCode 1)
 SDK       minSdk 29 / targetSdk 34 / compileSdk 34
-签名      Android Debug（v2 方案，未用 v1）
-体积      1272153 字节
-SHA-256   11242578334EC73557B86737BB775A08720C19BBBEFC017D30BD435AA3448241
+签名      Android Debug（v2 方案；证书 SHA-256 567b6279…d1bdba）
+体积      1295445 字节
+SHA-256   6255792ED16533A7DF05E7728EFBF9D8F5A56B4044A9E90A5C808FE4C5B638E7
 构建命令  ./gradlew assembleDebug
-构建时间  2026-10-09 23:30:01
+构建时间  2026-10-10 00:10
 
 安装
-  adb install -r pixelbead-debug.apk
-  # 车机上如果禁止 adb 安装，把 apk 拷到 U 盘用文件管理器点开也行
+  常规（车机 / 一般手机）：
+      adb install -r pixelbead-debug.apk
+
+  MIUI / HyperOS 上 adb install 会被拦（INSTALL_FAILED_USER_RESTRICTED），两条路：
+  1) 开发者选项里打开「USB 安装」，再重试 adb install
+  2) 绕过去 —— 不用 adb install，走安装会话：
+         adb push pixelbead-debug.apk /data/local/tmp/pb.apk
+         adb shell pm install-create -r -t -S 1295445
+         adb shell pm install-write -S 1295445 <sessionId> base /data/local/tmp/pb.apk
+         adb shell pm install-commit <sessionId>
+     仓库里的 tools/install-on-phone.ps1 把上面这串自动化了，还带断线重试。
 
 说明
-  · 这是 debug 包：开了 WebView 远程调试，方便 adb forward + chrome://inspect 排查网页。
-  · 正式交付请走 ./gradlew assembleRelease（release 包不开调试口）。
-  · 这个文件是快照，源码改了要重新构建再覆盖，别当成唯一来源。
+  · 这是 debug 包：开了 WebView 远程调试（adb forward + chrome://inspect），
+    release 包不会暴露调试口。
+  · 正式交付请走 ./gradlew assembleRelease。
+  · 这个 APK 是快照，源码改了要重新构建再覆盖，别当成唯一来源。
+
+变更记录
+  2026-10-10 00:10  修复「CSS 视口特别矮（手机横屏 869×400）时色板只能看到 2 个颜色」：
+                    新增 max-height:460px 断点，工具改 3 列 × 2 行、色条加宽到 92px。
+                    车机 1280×720 / 800×480 不走这一档，规格里的「2 列 34px」不变。
+  2026-10-09 23:21  修复 MediaStore 把 bead_art.h 改名成 bead_art.h.txt（按扩展名/MIME 匹配）。

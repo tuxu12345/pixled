@@ -466,3 +466,33 @@ main {
   .pick input[type=color] { height: 29px; }
   .swatches { gap: 4px; }
 }
+
+/* ---------------------------------------------------------------------
+   CSS 视口特别矮的情况（手机横屏：2608×1200 @480dpi → 只有 869×400 CSS px，
+   比 800×480 的车机还矮）。这一档下 84px 竖排里 2 列工具要吃掉 95px，
+   色板只剩 114px —— 实测只能看到 2 个颜色。
+   处理：工具改成 3 列 × 2 行、按钮缩到 26px，工具条加宽到 92px，
+   省下的 ~40px 全给色板，可见色块从 2 个回到 8 个。
+   （车机的 800×480 = 480 > 460，不会进这一档，规格里的"2 列 34px"原样保留。）
+   --------------------------------------------------------------------- */
+@media (min-width: 640px) and (orientation: landscape) and (max-height: 460px) {
+  :root { --rail: 92px; }
+
+  .editor { gap: 4px; padding: 3px 4px; }
+
+  /* 3 × 26 + 2 × 2 = 82 = 92 - 2(边框) - 8(左右内边距) */
+  .tools { grid-template-columns: repeat(3, 26px); gap: 2px; }
+  .tools button { width: 26px; height: 26px; font-size: 13px; }
+
+  /* 2 × 39 + 4 = 82 */
+  .editor-row { grid-template-columns: repeat(2, 39px); gap: 4px; }
+  .editor-row .icon.sq { width: 39px; height: 26px; }
+  .pick input[type=color] { width: 39px; height: 26px; }
+
+  .swatches { gap: 4px; }
+
+  /* 顺带再挤一点竖向空间出来 */
+  .stage-head h1 { font-size: 13px; }
+  .stage-bar { margin-top: 3px; gap: 5px; }
+  .stage-body { margin-top: 6px; }
+}

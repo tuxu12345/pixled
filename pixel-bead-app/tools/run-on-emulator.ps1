@@ -32,9 +32,16 @@ if (-not $SdkDir) {
 if (-not $SdkDir) {
     $lp = Join-Path $AppRoot 'local.properties'
     if (Test-Path $lp) {
-        $line = Get-Content $lp | Where-Object { $_ -match '^\s*sdk\.dir\s*=' } | Select-Object -First 1
-        if ($line) { $SdkDir = ($line -replace '^\s*sdk\.dir\s*=\s*', '').Trim() -replace '\\\\', '\' }
+        # -Encoding UTF8 是必须的：PS 5.1 默认按 ANSI 读，汉字注释的最后一个字节
+        # 会被当成 GBK 前导字节、把行尾换行一起吃掉，注释和 sdk.dir 会粘成一行，
+        # 下面这个正则就永远匹配不上（实测踩过）。
+        $line = Get-Content $lp -Encoding UTF8 | Where-Object { $_ -match '^\s*sdk\.dir\s*=' } | Select-Object -First 1
+        if ($line) { $SdkDir = ($line -replace '^\s*sdk\.dir\s*=\s*', '').Trim() }
     }
+}
+if (-not $SdkDir) {
+    $cmd = Get-Command adb -ErrorAction SilentlyContinue
+    if ($cmd) { $SdkDir = Split-Path -Parent (Split-Path -Parent $cmd.Source) }
 }
 if (-not $SdkDir -or -not (Test-Path $SdkDir)) {
     Write-Host "!! Android SDK not found."

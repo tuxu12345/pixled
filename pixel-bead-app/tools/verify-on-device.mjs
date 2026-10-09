@@ -23,6 +23,21 @@ const SHOTS = process.env.PB_SHOTS
 mkdirSync(SHOTS, { recursive: true });
 const shot = (name) => join(SHOTS, name);
 const saveShot = (base64, name) => { writeFileSync(shot(name), Buffer.from(base64, 'base64')); return shot(name); };
+/**
+ * 截图是"有则更好"的附赠品，不能因为它把整个验收搞挂。
+ * 实测手机 WebView（Android 16 / Chrome 153）压根不响应 Page.captureScreenshot，
+ * 会一直挂到超时 —— 断言该跑还得跑。
+ */
+const grabShot = async (name) => {
+  try {
+    const r = await cdp.send('Page.captureScreenshot', { format: 'png' }, 4000);
+    saveShot(r.data, name);
+    return true;
+  } catch (e) {
+    console.log(`  (截图 ${name} 跳过：${e.message})`);
+    return false;
+  }
+};
 
 /* ---------------- 极简 CDP 客户端 ---------------- */
 class CDPClient {
@@ -34,12 +49,12 @@ class CDPClient {
       msg.error ? reject(new Error(msg.method + ': ' + JSON.stringify(msg.error))) : resolve(msg.result);
     }
   }); }
-  send(method, params = {}) {
+  send(method, params = {}, timeoutMs = 20000) {
     const id = ++this.id;
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
       this.ws.send(JSON.stringify({ id, method, params }));
-      setTimeout(() => { if (this.pending.has(id)) { this.pending.delete(id); reject(new Error('CDP timeout: ' + method)); } }, 20000);
+      setTimeout(() => { if (this.pending.has(id)) { this.pending.delete(id); reject(new Error('CDP timeout: ' + method)); } }, timeoutMs);
     });
   }
   async eval(expression) {
@@ -146,16 +161,14 @@ const s2 = await state();
 const beads = parseInt(/· (\d+) 颗/.exec(s2.meta)?.[1] || '0', 10);
 add(beads > 20, '在画布上涂抹能上色（没被拖屏吃掉）', s2.meta);
 
-const png = await cdp.send('Page.captureScreenshot', { format: 'png' });
-saveShot(png.data, 'cdp-01-led.png');
+await grabShot('cdp-01-led.png');
 
 /* ---- 3. 熨烫 ---- */
 await cdp.eval(`document.getElementById('btnIron').click(); 'ok'`);
 await new Promise((r) => setTimeout(r, 800));
 const s3 = await state();
 add(s3.iron && /熨烫预览中/.test(s3.hint) && /熨烫预览/.test(s3.title), '🔥 熨烫切换生效（标题 + 状态 + 渲染）', `${s3.title} | ${s3.hint}`);
-const png2 = await cdp.send('Page.captureScreenshot', { format: 'png' });
-saveShot(png2.data, 'cdp-02-iron.png');
+await grabShot('cdp-02-iron.png');
 
 /* ---- 4. 导出 PNG（熨烫质感）→ PBSBridge.saveDataUrl ---- */
 await cdp.eval(`document.getElementById('btnExport').click(); 'ok'`);
@@ -178,8 +191,7 @@ await cdp.eval(`document.getElementById('btnSend').click(); 'ok'`);
 await new Promise((r) => setTimeout(r, 1500));
 const s4 = await state();
 add(/已交给安卓壳/.test(s4.status), '「发送到屏幕」调到了 PBSBridge.sendFrame', s4.status.slice(0, 80));
-const png3 = await cdp.send('Page.captureScreenshot', { format: 'png' });
-saveShot(png3.data, 'cdp-03-send.png');
+await grabShot('cdp-03-send.png');
 await cdp.eval(`document.getElementById('btnCloseExport').click(); 'ok'`);
 
 /* ---- 7. 载入图案库第一个（罗小黑），确认能继续编辑 ---- */
@@ -188,8 +200,7 @@ await new Promise((r) => setTimeout(r, 1000));
 const s5 = await state();
 add(/罗小黑/.test(s5.title) && /52 × 52/.test(s5.meta), '图案库第 1 个「罗小黑」可载入继续编辑', `${s5.title} | ${s5.meta}`);
 add(s5.editing, '载入后仍在编辑态');
-const png4 = await cdp.send('Page.captureScreenshot', { format: 'png' });
-saveShot(png4.data, 'cdp-04-luoxiaohei.png');
+await grabShot('cdp-04-luoxiaohei.png');
 
 /* ---- 8. 页面报错 ---- */
 const errs = await cdp.eval(`(window.__errs || [])`);
