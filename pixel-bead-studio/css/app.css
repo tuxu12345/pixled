@@ -326,7 +326,9 @@ main {
   /* 窄屏顶栏放不下两个状态胶囊，藏起来（点右上角 ⚙ 仍能看到设置） */
   .top-r .pill { display: none; }
   .top-r .icon { padding: 7px 10px; font-size: 12px; }
-  main { padding: 0 14px 20px; }
+  main { padding: 0 10px 20px; }
+  /* 手机上把卡片内边距收一点，画布能多吃 ~20px 宽度（32 格从 8px/格 提到 9px/格） */
+  .card { padding: 12px; }
   .prompt-row { flex-wrap: wrap; }
   .go { width: 100%; padding: 12px; }
   .src-row { flex-wrap: wrap; }
@@ -339,29 +341,45 @@ main {
   }
   .stage-tools .icon { width: 100%; padding: 9px 8px; font-size: 13px; }
 
+  /* 尺寸切换 + 豆色改成两行两列（标签靠左对齐），6 个尺寸按钮等分整行不溢出；
+     竖屏下「直接在画布上涂抹」这句提示会多占一行，隐藏掉省高度 */
+  .stage-bar {
+    display: grid; grid-template-columns: auto minmax(0, 1fr);
+    align-items: center; gap: 8px 9px;
+  }
+  .stage-bar .seg { justify-self: stretch; }
+  .stage-bar .seg button { flex: 1 1 0; min-width: 0; padding: 7px 2px; font-size: 12px; text-align: center; }
+  .stage-bar .mini-select { justify-self: start; }
+  .stage-hint { display: none; }
+
   /* ★ 关键修复：竖屏一律上下堆叠。原来 .stage-body 是 flex 横向不换行，
      编辑面板（工具条 + 28 色色板）的最小内容宽度把画布挤成一条 40px 的细缝。 */
   .stage-body { flex-direction: column; gap: 10px; }
   .canvas-wrap {
     width: 100%; flex: none;
-    /* 高度跟屏宽走：小屏 240px 起步，大屏最多 420px，画布始终是正方形居中 */
-    height: clamp(240px, 76vw, 420px);
+    /* 高度跟屏宽走：小屏 240px 起步，大屏最多 440px，画布始终是正方形居中 */
+    height: clamp(240px, 84vw, 440px);
     min-height: 0;
   }
 
-  /* 编辑面板落到画布下面，占满整行 */
+  /* 编辑面板落到画布下面，占满整行。
+     工具条和「撤销 / 取色」并排成一行（8 个控件刚好塞进 375 宽），
+     省下来的 46px 让色板提前一屏露出来。 */
   .editor {
     width: 100%; flex: none;
-    flex-direction: column; align-items: stretch; gap: 9px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center; gap: 8px;
   }
+  .editor.open { display: grid; }
   .tools { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); }
   .tools button { width: auto; height: 38px; font-size: 16px; }
-  .editor-row { justify-content: flex-start; gap: 10px; }
-  .editor-row .icon.sq { width: 40px; height: 36px; }
-  .pick input[type=color] { width: 40px; height: 36px; }
+  .editor-row { justify-content: flex-end; gap: 7px; }
+  .editor-row .icon.sq { width: 36px; height: 36px; }
+  .pick input[type=color] { width: 36px; height: 36px; }
 
   /* 色板：固定 7 列铺满整行（auto-fill 在窄屏 flex 容器里会被算成超高，别用） */
   .swatches {
+    grid-column: 1 / -1;
     display: grid; grid-template-columns: repeat(7, minmax(0, 1fr));
     gap: 6px; flex: none; min-width: 0; align-content: start;
     max-height: 42vh; overflow-y: auto; overflow-x: hidden;
