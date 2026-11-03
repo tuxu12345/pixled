@@ -319,16 +319,54 @@ main {
    窄屏 / 竖屏：退回上下堆叠（手机竖着看网页版用）
    ===================================================================== */
 @media (max-width: 639px), (orientation: portrait) {
-  .top { padding: 10px 14px; }
+  .top { padding: 10px 14px; gap: 8px; }
   .top-sub { display: none; }
+  .top-l b { font-size: 14.5px; }
+  .top-r { gap: 6px; }
+  /* 窄屏顶栏放不下两个状态胶囊，藏起来（点右上角 ⚙ 仍能看到设置） */
+  .top-r .pill { display: none; }
+  .top-r .icon { padding: 7px 10px; font-size: 12px; }
   main { padding: 0 14px 20px; }
   .prompt-row { flex-wrap: wrap; }
   .go { width: 100%; padding: 12px; }
   .src-row { flex-wrap: wrap; }
   .src-row .icon { flex: 1; }
-  .stage-tools { width: 100%; }
-  .stage-tools .icon { flex: 1; }
-  .canvas-wrap { min-height: 300px; }
+
+  /* 操作行改成 2×2 宫格：4 个按钮并排会在 360px 屏上溢出、把右侧按钮顶出卡片 */
+  .stage-tools {
+    width: 100%; display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px;
+  }
+  .stage-tools .icon { width: 100%; padding: 9px 8px; font-size: 13px; }
+
+  /* ★ 关键修复：竖屏一律上下堆叠。原来 .stage-body 是 flex 横向不换行，
+     编辑面板（工具条 + 28 色色板）的最小内容宽度把画布挤成一条 40px 的细缝。 */
+  .stage-body { flex-direction: column; gap: 10px; }
+  .canvas-wrap {
+    width: 100%; flex: none;
+    /* 高度跟屏宽走：小屏 240px 起步，大屏最多 420px，画布始终是正方形居中 */
+    height: clamp(240px, 76vw, 420px);
+    min-height: 0;
+  }
+
+  /* 编辑面板落到画布下面，占满整行 */
+  .editor {
+    width: 100%; flex: none;
+    flex-direction: column; align-items: stretch; gap: 9px;
+  }
+  .tools { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .tools button { width: auto; height: 38px; font-size: 16px; }
+  .editor-row { justify-content: flex-start; gap: 10px; }
+  .editor-row .icon.sq { width: 40px; height: 36px; }
+  .pick input[type=color] { width: 40px; height: 36px; }
+
+  /* 色板：固定 7 列铺满整行（auto-fill 在窄屏 flex 容器里会被算成超高，别用） */
+  .swatches {
+    display: grid; grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 6px; flex: none; min-width: 0; align-content: start;
+    max-height: 42vh; overflow-y: auto; overflow-x: hidden;
+  }
+  .swatches button { width: 100%; height: 38px; border-radius: 8px; }
 }
 
 /* =====================================================================
@@ -495,4 +533,17 @@ main {
   .stage-head h1 { font-size: 13px; }
   .stage-bar { margin-top: 3px; gap: 5px; }
   .stage-body { margin-top: 6px; }
+}
+
+/* ---------------------------------------------------------------------
+   手机横屏（高度 ≤ 420px，车机 480 高不进这一档）
+   右栏只有 232~330px 宽，输入框和「生成」按钮并排会把输入框压成一条缝，
+   「导入图片」那行的说明文字也会竖排断词。这两行改成上下堆叠。
+   --------------------------------------------------------------------- */
+@media (min-width: 640px) and (orientation: landscape) and (max-height: 420px) {
+  .prompt-row { flex-wrap: wrap; gap: 8px; }
+  .prompt-row .go { width: 100%; padding: 9px 0; }
+  .src-row { flex-wrap: wrap; gap: 8px; }
+  .src-row .icon { flex: 1 1 100%; }
+  .drop { flex: 1 1 100%; padding: 8px 12px; }
 }
